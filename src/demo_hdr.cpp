@@ -211,10 +211,16 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            
+
+        // create depth buffer
+        glGenRenderbuffers(1, &rboDepth);
+        glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, IO.ScreenWidth, IO.ScreenHeight);
+
+        // Attach buffers
         glBindFramebuffer(GL_FRAMEBUFFER, hdrBuffer);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
-        //glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, )
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             std::cout << "Framebuffer not complete." << std::endl;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -255,6 +261,7 @@ void demo_hdr::Update(const platform_io& IO)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 #pragma endregion
 
+#if 0
 #pragma region Render floating point color
     {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -266,6 +273,7 @@ void demo_hdr::Update(const platform_io& IO)
         RenderQuad();
     }
 #pragma endregion
+#endif
 
     // Render tavern wireframe
     if (Wireframe)

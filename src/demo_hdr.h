@@ -38,6 +38,7 @@ private:
 
     GLuint hdrProgram = 0;
     GLuint hdrBuffer = 0;
+    GLuint rboDepth = 0;
     GLuint colorBuffer = 0;
 
     tavern_scene TavernScene;
