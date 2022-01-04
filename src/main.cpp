@@ -26,7 +26,7 @@
 #include "demo_pg_billboard.h"
 #include "demo_pg_billboard2.h"
 #include "demo_pg_postprocess.h"
-#include "demo_perso.h"
+#include "demo_hdr.h"
 // TODO(demo): Add headers here
 
 #if 0
@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
         int DemoId = 0; // Change this to start with another demo
         std::unique_ptr<demo> Demos[] = 
         {
-            std::make_unique<demo_perso>(),
+            std::make_unique<demo_hdr>(),
             std::make_unique<demo_base>(GLCache, GLDebug),
             std::make_unique<demo_minimal>(),
             std::make_unique<demo_pg_skybox>(GLCache, GLDebug),
