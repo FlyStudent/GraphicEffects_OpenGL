@@ -22,17 +22,11 @@ public:
 private:
     GL::debug& GLDebug;
 
-    // 3d camera
-    camera Camera = {};
-
-    // GL objects needed by this demo
-    GLuint Program = 0;
     GLuint VAO = 0;
 
     GLuint SkyProgram = 0;
     GLuint SkyVAO = 0;
     GLuint SkyBuffer = 0;
-    GLuint SkyTexture = 0;
 
     bool Wireframe = false;
 };

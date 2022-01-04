@@ -23,17 +23,19 @@ public:
 private:
     GL::debug& GLDebug;
 
-    // 3d camera
-    camera Camera = {};
-
-    // GL objects needed by this demo
-    GLuint Program = 0;
     GLuint VAO = 0;
-
-    
 
     bool Wireframe = false;
 
 protected:
+
+    // GL objects needed by this demo
+    GLuint Program = 0;
+
+    // 3d camera
+    camera Camera = {};
+
     tavern_scene TavernScene;
+
+    GLuint SkyTexture = 0;
 };

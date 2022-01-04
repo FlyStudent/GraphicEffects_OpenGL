@@ -210,5 +210,6 @@ void demo_base::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatri
     
     // Draw mesh
     glBindVertexArray(VAO);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
     glDrawArrays(GL_TRIANGLES, 0, TavernScene.MeshVertexCount);
 }

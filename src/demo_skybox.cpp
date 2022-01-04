@@ -56,6 +56,8 @@ uniform vec3 uViewPosition;
 uniform sampler2D uDiffuseTexture;
 uniform sampler2D uEmissiveTexture;
 
+uniform samplerCube skybox;
+
 // Uniform blocks
 layout(std140) uniform uLightBlock
 {
@@ -90,6 +92,10 @@ void main()
     
     // Apply light color
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
+
+    vec3 I = normalize(vPos - uViewPosition);
+    vec3 R = reflect(I, normalize(vNormal));
+    oColor = vec4(texture(skybox, R).rgb, 1.0);
 })GLSL";
 
 
