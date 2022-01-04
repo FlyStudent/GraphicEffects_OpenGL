@@ -52,3 +52,5 @@ struct mat4
         v4 c[4];
     };
 };
+
+mat4 Mat4RemoveTranslate(mat4 in);

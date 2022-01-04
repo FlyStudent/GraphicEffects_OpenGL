@@ -90,6 +90,12 @@
     <ClCompile Include="src\demo_perso.cpp">
       <Filter>Source Files\demo</Filter>
     </ClCompile>
+    <ClCompile Include="src\demo_skybox.cpp">
+      <Filter>Source Files\demo</Filter>
+    </ClCompile>
+    <ClCompile Include="src\types.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera.h">
@@ -169,6 +175,9 @@
     </ClInclude>
     <ClInclude Include="src\demo_perso.h">
       <Filter>Source Files\demo</Filter>
+    </ClInclude>
+    <ClInclude Include="src\demo_skybox.h">
+      <Filter>Header Files\demo</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

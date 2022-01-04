@@ -116,3 +116,12 @@ mat4 CameraGetInverseMatrix(const camera& Camera)
     ViewTransform *= Mat4::Translate(-Camera.Position);
     return ViewTransform;
 }
+
+mat4 CameraGetInverseMatrixWT(const camera& Camera)
+{
+    // We know how to compute the inverse of the camera
+    mat4 ViewTransform = Mat4::Identity();
+    ViewTransform *= Mat4::RotateX(-Camera.Pitch);
+    ViewTransform *= Mat4::RotateY(-Camera.Yaw);
+    return ViewTransform;
+}
