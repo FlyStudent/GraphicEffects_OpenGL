@@ -199,6 +199,9 @@
     <ClInclude Include="src\tavern_scene.h" />
     <ClInclude Include="src\types.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\hdr.fs" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

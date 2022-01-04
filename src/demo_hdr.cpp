@@ -1,5 +1,6 @@
 
 #include <vector>
+#include <iostream>
 
 #include <imgui.h>
 
@@ -94,9 +95,7 @@ void main()
 #pragma endregion
 
 #pragma region HDR VS
-static const char* gHdrFragmentShaderStr = R"GLSL(
-#version 330 core
-
+static const char* gHdrVertexShaderStr = R"GLSL(
 // Attributes
 layout (location = 0) in vec3 aPosition;
 layout (location = 1) in vec2 aUV;
@@ -113,21 +112,24 @@ void main()
 
 #pragma region HDR FS
 static const char* gHdrFragmentShaderStr = R"GLSL(
-#version 330 core
-
 // shader inputs
 in vec2 TexCoords;
 
 // uniforms
-uniform sampler2D hdrBuffer;
+uniform sampler2D uhdrBuffer;
+uniform bool uProcess;
+uniform float uExposure;
 
 // shader ouputs
 out vec4 oColor;
 
 void main()
 {
-	vec3 hdrColor = texture(hdrBuffer, TexCoords).rgb;
-	oColor = vec4(hdrColor, 1.0);
+	vec3 hdrColor = texture(uhdrBuffer, TexCoords).rgb;
+
+	vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
+
+	oColor = vec4(toneMapped, 1.0);
 })GLSL";
 #pragma endregion
 
@@ -145,6 +147,8 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         };
 
         this->Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+
+        hdrProgram = GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
     }
     
     // Create a vertex array and bind attribs onto the vertex buffer
@@ -163,8 +167,35 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.NormalOffset);
     }
 
-    // Set uniforms that won't change
+    // Create a quad Vertex Object
     {
+        float quadVertices[] = {
+            // positions        // texture Coords
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        GLuint quadVBO = 0;
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+
+    // Set initial uniforms
+    {
+        glUseProgram(hdrProgram);
+        glUniform1i(glGetUniformLocation(hdrProgram, "uhdrBuffer"), 0);
+
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
         glUniform1i(glGetUniformLocation(Program, "uEmissiveTexture"), 1);
@@ -184,6 +215,9 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glBindFramebuffer(GL_FRAMEBUFFER, hdrBuffer);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
         //glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, )
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "Framebuffer not complete." << std::endl;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 }
 
@@ -196,21 +230,42 @@ demo_hdr::~demo_hdr()
 
 void demo_hdr::Update(const platform_io& IO)
 {
+
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
-
+    
     // Clear screen
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+#pragma region Render floating point framebuffer
+    // -----
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrBuffer);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
     mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
 
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#pragma endregion
+
+#pragma region Render floating point color
+    {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUseProgram(hdrProgram);
+        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+        
+        glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
+        glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
+        RenderQuad();
+    }
+#pragma endregion
 
     // Render tavern wireframe
     if (Wireframe)
@@ -228,6 +283,9 @@ void demo_hdr::DisplayDebugUI()
     if (ImGui::TreeNodeEx("demo_hdr", ImGuiTreeNodeFlags_Framed))
     {
         // Debug display
+        ImGui::Checkbox("HDR", &processHdr);
+        ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
+        ImGui::Spacing();
         ImGui::Checkbox("Wireframe", &Wireframe);
         if (ImGui::TreeNodeEx("Camera"))
         {
@@ -241,6 +299,14 @@ void demo_hdr::DisplayDebugUI()
         ImGui::TreePop();
     }
 }
+
+void demo_hdr::RenderQuad()
+{
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
 
 void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
 {

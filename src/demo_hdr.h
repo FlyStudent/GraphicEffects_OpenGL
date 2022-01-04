@@ -17,6 +17,7 @@ public:
     virtual ~demo_hdr();
     virtual void Update(const platform_io& IO);
 
+    void RenderQuad();
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void DisplayDebugUI();
 
@@ -29,8 +30,13 @@ private:
     // GL objects needed by this demo
     GLuint Program = 0;
     GLuint VAO = 0;
+    GLuint quadVAO = 0;
 
     // HDR objects
+    bool processHdr = true;
+    float exposure = 1.f;
+
+    GLuint hdrProgram = 0;
     GLuint hdrBuffer = 0;
     GLuint colorBuffer = 0;
 

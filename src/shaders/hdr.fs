@@ -1,16 +1,19 @@
-#version 330 core
-
 // shader inputs
 in vec2 TexCoords;
 
 // uniforms
-uniform sampler2D hdrBuffer;
+uniform sampler2D uhdrBuffer;
+uniform bool uProcess;
+uniform float uExposure;
 
 // shader ouputs
 out vec4 oColor;
 
 void main()
 {
-	vec3 hdrColor = texture(hdrBuffer, TexCoords).rgb;
-	oColor = vec4(hdrColor, 1.0);
+	vec3 hdrColor = texture(uhdrBuffer, TexCoords).rgb;
+
+	vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
+
+	oColor = vec4(toneMapped, 1.0);
 }
