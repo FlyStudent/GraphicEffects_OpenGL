@@ -51,9 +51,6 @@
     <ClCompile Include="src\mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\demo_minimal.cpp">
-      <Filter>Source Files\demo</Filter>
-    </ClCompile>
     <ClCompile Include="externals\imgui\imgui.cpp">
       <Filter>Source Files\ext\imgui</Filter>
     </ClCompile>
@@ -90,11 +87,14 @@
     <ClCompile Include="src\tavern_scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\demo_perso.cpp">
-      <Filter>Source Files\demo</Filter>
-    </ClCompile>
     <ClCompile Include="src\demo_hdr.cpp">
       <Filter>Source Files\demo</Filter>
+    </ClCompile>
+    <ClCompile Include="src\demo_minimal.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\demo_perso.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -173,10 +173,13 @@
     <ClInclude Include="src\tavern_scene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\demo_perso.h">
+    <ClInclude Include="src\demo_hdr.h">
       <Filter>Source Files\demo</Filter>
     </ClInclude>
-    <ClInclude Include="src\demo_hdr.h">
+    <ClInclude Include="src\demo_perso.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\demo_pg_postprocess.h">
       <Filter>Source Files\demo</Filter>
     </ClInclude>
   </ItemGroup>

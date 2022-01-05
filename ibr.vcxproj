@@ -188,6 +188,7 @@
     <ClInclude Include="src\demo_hdr.h" />
     <ClInclude Include="src\demo_minimal.h" />
     <ClInclude Include="src\demo_perso.h" />
+    <ClInclude Include="src\demo_pg_postprocess.h" />
     <ClInclude Include="src\maths.h" />
     <ClInclude Include="src\maths_extension.h" />
     <ClInclude Include="src\mesh.h" />

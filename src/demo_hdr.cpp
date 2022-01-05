@@ -109,12 +109,12 @@ layout (location = 0) in vec3 aPosition;
 layout (location = 1) in vec2 aUV;
 
 // shader output
-out vec2 oUV;
+out vec2 TexCoords;
 
 void main()
 {
-    oUV = aUV;
     gl_Position = vec4(aPosition, 1.0);
+    TexCoords = aUV;
 })GLSL";
 #pragma endregion
 
@@ -124,20 +124,20 @@ static const char* gHdrFragmentShaderStr = R"GLSL(
 in vec2 TexCoords;
 
 // uniforms
-uniform sampler2D uhdrBuffer;
+uniform sampler2D uScreenTexture;
 uniform bool uProcess;
 uniform float uExposure;
 
 // shader ouputs
-out vec4 oColor;
+out vec4 FragColor;
 
 void main()
 {
-	vec3 hdrColor = texture(uhdrBuffer, TexCoords).rgb;
+	vec3 hdrColor = texture(uScreenTexture, TexCoords).rgb;
 
 	vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
 
-	oColor = vec4(toneMapped, 1.0);
+	FragColor = vec4(toneMapped, 1.0);
 })GLSL";
 #pragma endregion
 
@@ -200,10 +200,11 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
 
         
     }
+
     // Set initial uniforms
     {
         glUseProgram(hdrProgram);
-        glUniform1i(glGetUniformLocation(hdrProgram, "uhdrBuffer"), 0); // 0 because Only one texture will be attached
+        glUniform1i(glGetUniformLocation(hdrProgram, "uScreenBuffer"), 0); // 0 because Only one texture will be attached
 
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
@@ -219,23 +220,28 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         // Create color buffer
         glGenTextures(1, &CBO);
         glBindTexture(GL_TEXTURE_2D, CBO);
+
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         // create render buffers instead of depth buffer
         glGenRenderbuffers(1, &RBO);
         glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-        glRenderbufferStorage(GL_RENDERBUFFER, /*GL_DEPTH_COMPONENT*/GL_DEPTH24_STENCIL8, IO.ScreenWidth, IO.ScreenHeight);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, IO.ScreenWidth, IO.ScreenHeight);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
         // Attach buffers
-        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, CBO, 0);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, /*GL_DEPTH_ATTACHMENT*/GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
+
+        // Check buffer
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             std::cout << "Framebuffer not complete." << std::endl;
+        // Unbind
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 }
@@ -244,7 +250,9 @@ demo_hdr::~demo_hdr()
 {
     // Cleanup GL
     glDeleteVertexArrays(1, &VAO);
+    glDeleteVertexArrays(1, &quadVAO);
     glDeleteProgram(Program);
+    glDeleteProgram(hdrProgram);
 }
 
 void demo_hdr::Update(const platform_io& IO)
@@ -255,16 +263,15 @@ void demo_hdr::Update(const platform_io& IO)
 
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
     
+
+#pragma region Draw scene in FBO
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
     // Clear screen
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-#pragma region Render hdr Framebuffer
-    // -----
-    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
+
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
     mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
@@ -272,24 +279,21 @@ void demo_hdr::Update(const platform_io& IO)
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
-    // Render tavern wireframe
-    if (Wireframe)
-    {
-        GLDebug.Wireframe.BindBuffer(TavernScene.MeshBuffer, TavernScene.MeshDesc.Stride, TavernScene.MeshDesc.PositionOffset, TavernScene.MeshVertexCount);
-        GLDebug.Wireframe.DrawArray(0, TavernScene.MeshVertexCount, ProjectionMatrix * ViewMatrix * ModelMatrix);
-    }
 #pragma endregion
 
 #if 1
-#pragma region Render floating point color
+#pragma region Draw post-process HDR
     {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glDisable(GL_DEPTH_TEST);
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(hdrProgram);
+        // Set uniforms
         glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
         glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
 
+        glDisable(GL_DEPTH_TEST);
         glBindTexture(GL_TEXTURE_2D, CBO);
         
         RenderQuad();
@@ -297,6 +301,12 @@ void demo_hdr::Update(const platform_io& IO)
 #pragma endregion
 #endif
     
+    // Render tavern wireframe
+    if (Wireframe)
+    {
+        GLDebug.Wireframe.BindBuffer(TavernScene.MeshBuffer, TavernScene.MeshDesc.Stride, TavernScene.MeshDesc.PositionOffset, TavernScene.MeshVertexCount);
+        GLDebug.Wireframe.DrawArray(0, TavernScene.MeshVertexCount, ProjectionMatrix * ViewMatrix * ModelMatrix);
+    }
     // Display debug UI
     this->DisplayDebugUI();
 }

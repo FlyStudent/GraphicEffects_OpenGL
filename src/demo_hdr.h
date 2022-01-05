@@ -31,7 +31,6 @@ private:
     GLuint Program = 0;
     GLuint VAO = 0;
     GLuint quadVAO = 0;
-    GLuint quadVAO2 = 0;
 
     // HDR objects
     bool processHdr = true;
