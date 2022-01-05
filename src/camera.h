@@ -8,6 +8,8 @@ struct camera
     v3 Position;
     float Yaw;
     float Pitch;
+
+    void SetFace(int i);
 };
 
 enum camera_key_inputs_mask

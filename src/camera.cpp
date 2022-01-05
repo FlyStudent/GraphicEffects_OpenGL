@@ -43,6 +43,19 @@ camera CameraUpdateFPS(const camera& PreviousCamera, const camera_inputs& Inputs
     return Camera;
 }
 
+void camera::SetFace(int i) 
+{
+    switch (i) 
+    {
+        case 0: Pitch = 0; Yaw = 90; break;
+        case 1: Pitch = 0; Yaw = -90; break;
+        case 2: Pitch = -90; Yaw = 180; break;
+        case 3: Pitch = 90; Yaw = 180; break;
+        case 4: Pitch = 0; Yaw = 180; break;
+        case 5: Pitch = 0; Yaw = 0; break;
+    }
+}
+
 camera CameraUpdateFreefly(const camera& PreviousCamera, const camera_inputs& Inputs)
 {
     camera Camera = PreviousCamera;

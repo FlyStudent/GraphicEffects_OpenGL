@@ -95,6 +95,9 @@ void main()
 
     vec3 I = normalize(vPos - uViewPosition);
     vec3 R = reflect(I, normalize(vNormal));
+    float ratio = 1.00/1.52;
+    //R = refract(I, normalize(vNormal), ratio);
+
     oColor = vec4(texture(skybox, R).rgb, 1.0);
 })GLSL";
 
@@ -139,9 +142,10 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
             gFragmentShaderStr,
         };
 
-        this->Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+        //this->Program = 
 
         this->SkyProgram = GL::CreateProgram(gVertexShaderCubeStr, gFragmentShaderCubeStr);
+        this->ReflectiveProgram = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
     }
 
     // Create a vertex array and bind attribs onto the vertex buffer
@@ -158,6 +162,32 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.UVOffset);
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.NormalOffset);
+    }
+
+    // Create sphere vertex array
+    {
+        int VertexMeshCount = 0;
+        GLuint buffer = GLCache.LoadObj("media/sphere.obj",1.f, &VertexMeshCount);
+        vertex_descriptor sphere;
+
+        sphere.Stride = sizeof(vertex_full);
+        sphere.HasNormal = true;
+        sphere.HasUV = true;
+        sphere.PositionOffset = OFFSETOF(vertex_full, Position);
+        sphere.UVOffset = OFFSETOF(vertex_full, UV);
+        sphere.NormalOffset = OFFSETOF(vertex_full, Normal);
+
+        glGenVertexArrays(1, &SphereVAO);
+        glBindVertexArray(SphereVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sphere.Stride, (void*)(size_t)sphere.PositionOffset);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sphere.Stride, (void*)(size_t)sphere.UVOffset);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sphere.Stride, (void*)(size_t)sphere.NormalOffset);
     }
 
     // Create a vertex array and bind attribs onto the vertex buffer
@@ -218,6 +248,7 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void*)0);
         glBindVertexArray(0);
+
     }
 
     // Set uniforms that won't change
@@ -228,7 +259,7 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
         glUniformBlockBinding(Program, glGetUniformBlockIndex(Program, "uLightBlock"), LIGHT_BLOCK_BINDING_POINT);
     }
 
-    //Create Cubemap
+    //Create Skybox
 
     std::vector<std::string> faces
     {
@@ -269,13 +300,90 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
         }
     }
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+    // Create Empty cubemap
+    {
+        glGenTextures(1, &EnvironmentTexture);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, EnvironmentTexture);
+
+        for (unsigned int i = 0; i < faces.size(); i++)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        }
+    }
+
+    RenderEnvironmentMap({0,0,0});
 };
 
 demo_skybox::~demo_skybox()
 {
     // Cleanup GL
     glDeleteVertexArrays(1, &VAO);
+    glDeleteVertexArrays(1, &SkyVAO);
     glDeleteProgram(Program);
+    glDeleteProgram(ReflectiveProgram);
+    glDeleteProgram(SkyProgram);
+}
+
+void demo_skybox::RenderEnvironmentMap(const v3& center) 
+{
+    // Set center of rendering
+    RenderingCamera.Position = center;
+
+    // generate empty cubemap 
+    // generate an FBO 
+    GLuint fbo = 0;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+    GLuint depth = 0;
+    glGenRenderbuffers(1, &depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
+
+    glViewport(0, 0, 128, 128);
+    // render the scene then push the fbo in
+    for (int i = 0; i < 6 ; i++)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, EnvironmentTexture, 0);
+        // switch between the 6 faces of the cubemap
+        RenderingCamera.SetFace(i);
+
+        //render the scene in the fbo
+        mat4 ProjectionMatrixUnit = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
+        mat4 ViewMatrix = CameraGetInverseMatrix(RenderingCamera);
+        mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
+        mat4 ViewMatrixWT = CameraGetInverseMatrixWT(Camera);
+        
+        glClearColor(0.f, 0.f, 0.f, 1.f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        glUseProgram(SkyProgram);
+        // ... set view and projection matrix
+
+        glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "projection"), 1, GL_FALSE, ProjectionMatrixUnit.e);
+        glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "view"), 1, GL_FALSE, ViewMatrixWT.e);
+
+        glBindVertexArray(SkyVAO);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+
+        this->RenderTavernEnv(ProjectionMatrixUnit, ViewMatrix, ModelMatrix);
+    }
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    /*glDeleteRenderbuffers(1, &depth);
+    glDeleteFramebuffers(1, &fbo);
+    */
 }
 
 void demo_skybox::Update(const platform_io& IO)
@@ -310,6 +418,25 @@ void demo_skybox::Update(const platform_io& IO)
 
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
+    
+    // Render Sphere used to reflect
+    glUseProgram(ReflectiveProgram);
+
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModel"), 1, GL_FALSE, ModelMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
+    glUniform3fv(glGetUniformLocation(ReflectiveProgram, "uViewPosition"), 1, Camera.Position.e);
+
+    glBindVertexArray(SphereVAO);
+    if (Dynamic)
+        glBindTexture(GL_TEXTURE_CUBE_MAP, EnvironmentTexture);
+    else 
+        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+
+    glDrawArrays(GL_TRIANGLES, 0, 2880);
 
     // Render tavern wireframe
     if (Wireframe)
@@ -324,10 +451,11 @@ void demo_skybox::Update(const platform_io& IO)
 
 void demo_skybox::DisplayDebugUI()
 {
-    if (ImGui::TreeNodeEx("demo_base", ImGuiTreeNodeFlags_Framed))
+    if (ImGui::TreeNodeEx("demo_Skybox", ImGuiTreeNodeFlags_Framed))
     {
         // Debug display
         ImGui::Checkbox("Wireframe", &Wireframe);
+        ImGui::Checkbox("Dynamic Reflection", &Dynamic);
         if (ImGui::TreeNodeEx("Camera"))
         {
             ImGui::Text("Position: (%.2f, %.2f, %.2f)", Camera.Position.x, Camera.Position.y, Camera.Position.z);

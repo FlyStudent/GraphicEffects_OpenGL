@@ -18,6 +18,7 @@ public:
     virtual void Update(const platform_io& IO);
 
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
+    void RenderTavernEnv(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void DisplayDebugUI();
 
 private:
@@ -35,7 +36,9 @@ protected:
     // 3d camera
     camera Camera = {};
 
+    // rendering camera
+    camera RenderingCamera = {};
+    
     tavern_scene TavernScene;
 
-    GLuint SkyTexture = 0;
 };
