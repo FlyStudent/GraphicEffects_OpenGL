@@ -1,3 +1,5 @@
+#version 330
+
 // shader inputs
 in vec2 TexCoords;
 

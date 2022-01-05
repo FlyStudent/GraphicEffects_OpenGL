@@ -15,6 +15,14 @@
 
 const int LIGHT_BLOCK_BINDING_POINT = 0;
 
+// Vertex format
+// ==================================================
+struct vertex
+{
+    v3 Position;
+    v2 UV;
+};
+
 #pragma region BASIC VS
 static const char* gVertexShaderStr = R"GLSL(
 // Attributes
@@ -146,7 +154,7 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
             gFragmentShaderStr,
         };
 
-        this->Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+        Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
 
         hdrProgram = GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
     }
@@ -167,7 +175,7 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.NormalOffset);
     }
 
-    // Create a quad Vertex Object
+    // Create a quad Vertex Object for FBO
     {
         float quadVertices[] = {
             // positions        // texture Coords
@@ -189,12 +197,13 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    }
 
+        
+    }
     // Set initial uniforms
     {
         glUseProgram(hdrProgram);
-        glUniform1i(glGetUniformLocation(hdrProgram, "uhdrBuffer"), 0);
+        glUniform1i(glGetUniformLocation(hdrProgram, "uhdrBuffer"), 0); // 0 because Only one texture will be attached
 
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
@@ -204,23 +213,27 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
 
     // Hdr floating point framebuffer
     {
-        glGenFramebuffers(1, &hdrBuffer);
+        glGenFramebuffers(1, &FBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
-        glGenTextures(1, &colorBuffer);
-        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+        // Create color buffer
+        glGenTextures(1, &CBO);
+        glBindTexture(GL_TEXTURE_2D, CBO);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-        // create depth buffer
-        glGenRenderbuffers(1, &rboDepth);
-        glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, IO.ScreenWidth, IO.ScreenHeight);
+        // create render buffers instead of depth buffer
+        glGenRenderbuffers(1, &RBO);
+        glBindRenderbuffer(GL_RENDERBUFFER, RBO);
+        glRenderbufferStorage(GL_RENDERBUFFER, /*GL_DEPTH_COMPONENT*/GL_DEPTH24_STENCIL8, IO.ScreenWidth, IO.ScreenHeight);
 
         // Attach buffers
-        glBindFramebuffer(GL_FRAMEBUFFER, hdrBuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, CBO, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, /*GL_DEPTH_ATTACHMENT*/GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             std::cout << "Framebuffer not complete." << std::endl;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -246,11 +259,12 @@ void demo_hdr::Update(const platform_io& IO)
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#pragma region Render floating point framebuffer
+#pragma region Render hdr Framebuffer
     // -----
-    glBindFramebuffer(GL_FRAMEBUFFER, hdrBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
     mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
@@ -258,29 +272,30 @@ void demo_hdr::Update(const platform_io& IO)
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-#pragma endregion
-
-#if 0
-#pragma region Render floating point color
-    {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(hdrProgram);
-        glBindTexture(GL_TEXTURE_2D, colorBuffer);
-        
-        glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
-        glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
-        RenderQuad();
-    }
-#pragma endregion
-#endif
-
     // Render tavern wireframe
     if (Wireframe)
     {
         GLDebug.Wireframe.BindBuffer(TavernScene.MeshBuffer, TavernScene.MeshDesc.Stride, TavernScene.MeshDesc.PositionOffset, TavernScene.MeshVertexCount);
         GLDebug.Wireframe.DrawArray(0, TavernScene.MeshVertexCount, ProjectionMatrix * ViewMatrix * ModelMatrix);
     }
+#pragma endregion
+
+#if 1
+#pragma region Render floating point color
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_TEST);
+
+        glUseProgram(hdrProgram);
+        glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
+        glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
+
+        glBindTexture(GL_TEXTURE_2D, CBO);
+        
+        RenderQuad();
+    }
+#pragma endregion
+#endif
     
     // Display debug UI
     this->DisplayDebugUI();

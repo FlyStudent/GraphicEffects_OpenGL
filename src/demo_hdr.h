@@ -31,15 +31,16 @@ private:
     GLuint Program = 0;
     GLuint VAO = 0;
     GLuint quadVAO = 0;
+    GLuint quadVAO2 = 0;
 
     // HDR objects
     bool processHdr = true;
     float exposure = 1.f;
 
     GLuint hdrProgram = 0;
-    GLuint hdrBuffer = 0;
-    GLuint rboDepth = 0;
-    GLuint colorBuffer = 0;
+    GLuint FBO = 0;
+    GLuint RBO = 0;
+    GLuint CBO = 0;
 
     tavern_scene TavernScene;
 
