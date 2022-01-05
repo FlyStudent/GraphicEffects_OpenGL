@@ -61,6 +61,7 @@ in vec3 vNormal;
 // Uniforms
 uniform mat4 uProjection;
 uniform vec3 uViewPosition;
+uniform bool uProcess;
 
 uniform sampler2D uDiffuseTexture;
 uniform sampler2D uEmissiveTexture;
@@ -99,6 +100,13 @@ void main()
     
     // Apply light color
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
+    
+    // Apply gamma correction
+    if (uProcess)
+    {
+        float gamma = 2.2;
+        oColor.rgb = pow(oColor.rgb, vec3(1.0/gamma));
+    }
 })GLSL";
 #pragma endregion
 
@@ -133,11 +141,18 @@ out vec4 FragColor;
 
 void main()
 {
+	const float gamma = 2.2;
 	vec3 hdrColor = texture(uScreenTexture, TexCoords).rgb;
-
-	vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
-
-	FragColor = vec4(toneMapped, 1.0);
+	if (uProcess)
+	{
+		vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
+		toneMapped = pow(toneMapped, vec3(1.0 / gamma));
+		FragColor = vec4(toneMapped, 1.0);
+	}
+	else
+	{
+		FragColor = vec4(pow(hdrColor, vec3(1.0/gamma)), 1.0);
+	}
 })GLSL";
 #pragma endregion
 
@@ -281,7 +296,6 @@ void demo_hdr::Update(const platform_io& IO)
 
 #pragma endregion
 
-#if 1
 #pragma region Draw post-process HDR
     {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -299,7 +313,6 @@ void demo_hdr::Update(const platform_io& IO)
         RenderQuad();
     }
 #pragma endregion
-#endif
     
     // Render tavern wireframe
     if (Wireframe)
@@ -356,6 +369,9 @@ void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix
     glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
     glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
     
+    // Gamma correction
+    glUniform1i(glGetUniformLocation(Program, "uProcess"), processHdr);
+
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
     glActiveTexture(GL_TEXTURE0);

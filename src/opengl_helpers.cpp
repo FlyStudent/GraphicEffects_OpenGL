@@ -254,7 +254,15 @@ void GL::UploadTexture(const char* Filename, int ImageFlags, int* WidthOut, int*
         return;
     }
 
-	GLint GLImageFormat[] = 
+	GLint GLInternalFormat[] =
+	{
+		-1, // 0 Channels, unused
+		GL_RED,
+		GL_RG,
+		GL_SRGB,
+		GL_SRGB_ALPHA
+	};
+	GLint GLImageFormat[] =
 	{
 		-1, // 0 Channels, unused
 		GL_RED,
@@ -262,9 +270,10 @@ void GL::UploadTexture(const char* Filename, int ImageFlags, int* WidthOut, int*
 		GL_RGB,
 		GL_RGBA
 	};
+	
 
     // Uploading
-    glTexImage2D(GL_TEXTURE_2D, 0, GLImageFormat[Channels], Width, Height, 0, GLImageFormat[Channels], GL_UNSIGNED_BYTE, Image);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLInternalFormat[Channels], Width, Height, 0, GLImageFormat[Channels], GL_UNSIGNED_BYTE, Image);
     stbi_image_free(Image);
 
     // Mipmaps
