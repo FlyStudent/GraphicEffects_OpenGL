@@ -61,7 +61,7 @@ in vec3 vNormal;
 // Uniforms
 uniform mat4 uProjection;
 uniform vec3 uViewPosition;
-uniform bool uProcess;
+uniform bool uGamma;
 
 uniform sampler2D uDiffuseTexture;
 uniform sampler2D uEmissiveTexture;
@@ -102,7 +102,7 @@ void main()
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
     
     // Apply gamma correction
-    if (uProcess)
+    if (uGamma)
     {
         float gamma = 2.2;
         oColor.rgb = pow(oColor.rgb, vec3(1.0/gamma));
@@ -134,6 +134,7 @@ in vec2 TexCoords;
 // uniforms
 uniform sampler2D uScreenTexture;
 uniform bool uProcess;
+uniform bool uGamma;
 uniform float uExposure;
 
 // shader ouputs
@@ -146,13 +147,14 @@ void main()
 	if (uProcess)
 	{
 		vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
-		toneMapped = pow(toneMapped, vec3(1.0 / gamma));
-		FragColor = vec4(toneMapped, 1.0);
+        hdrColor = toneMapped;
 	}
-	else
+	if (uGamma)
 	{
-		FragColor = vec4(pow(hdrColor, vec3(1.0/gamma)), 1.0);
+		hdrColor = pow(hdrColor, vec3(1.0/gamma));
 	}
+    
+    FragColor = vec4(hdrColor, 1.0);
 })GLSL";
 #pragma endregion
 
@@ -305,6 +307,7 @@ void demo_hdr::Update(const platform_io& IO)
         glUseProgram(hdrProgram);
         // Set uniforms
         glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
+        glUniform1i(glGetUniformLocation(hdrProgram, "uGamma"), processGamma);
         glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
 
         glDisable(GL_DEPTH_TEST);
@@ -330,6 +333,7 @@ void demo_hdr::DisplayDebugUI()
     {
         // Debug display
         ImGui::Checkbox("HDR", &processHdr);
+        ImGui::Checkbox("Gamma", &processGamma);
         ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
         ImGui::Spacing();
         ImGui::Checkbox("Wireframe", &Wireframe);
@@ -370,14 +374,24 @@ void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix
     glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
     
     // Gamma correction
-    glUniform1i(glGetUniformLocation(Program, "uProcess"), processHdr);
+    glUniform1i(glGetUniformLocation(Program, "uGamma"), processGamma);
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, TavernScene.DiffuseTexture);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, TavernScene.EmissiveTexture);
+    if (processGamma) // Texture not the same according to gamma processing
+    {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, TavernScene.SDiffuseTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, TavernScene.SEmissiveTexture);
+    }
+    else
+    {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, TavernScene.DiffuseTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, TavernScene.EmissiveTexture);
+    }
     glActiveTexture(GL_TEXTURE0); // Reset active texture just in case
     
     // Draw mesh

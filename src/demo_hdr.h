@@ -34,6 +34,7 @@ private:
 
     // HDR objects
     bool processHdr = true;
+    bool processGamma = true;
     float exposure = 1.f;
 
     GLuint hdrProgram = 0;

@@ -15,7 +15,7 @@ namespace GL
         cache();
         ~cache();
         GLuint LoadObj(const char* Filename, float Scale, int* VertexCountOut);
-        GLuint LoadTexture(const char* Filename, int ImageFlags = 0, int* WidthOut = nullptr, int* HeightOut = nullptr);
+        GLuint LoadTexture(const char* Filename, int ImageFlags = 0, int* WidthOut = nullptr, int* HeightOut = nullptr, bool gamma = false);
 
 	private:
 		struct mesh

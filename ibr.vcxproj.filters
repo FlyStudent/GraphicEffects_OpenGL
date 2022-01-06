@@ -45,9 +45,6 @@
     <ClCompile Include="src\opengl_helpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\demo_base.cpp">
-      <Filter>Source Files\demo</Filter>
-    </ClCompile>
     <ClCompile Include="src\mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -178,9 +175,6 @@
     </ClInclude>
     <ClInclude Include="src\demo_perso.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\demo_pg_postprocess.h">
-      <Filter>Source Files\demo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
