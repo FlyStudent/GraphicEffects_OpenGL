@@ -60,8 +60,10 @@ tavern_scene::tavern_scene(GL::cache& GLCache)
 
     // Gen texture
     {
-        DiffuseTexture  = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+        DiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+        SDiffuseTexture  = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
         EmissiveTexture = GLCache.LoadTexture("media/fantasy_game_inn_emissive.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+        SEmissiveTexture = GLCache.LoadTexture("media/fantasy_game_inn_emissive.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
     }
     
     // Gen light uniform buffer
@@ -84,7 +86,6 @@ static bool EditLight(GL::light* Light)
     bool Result =
           ImGui::Checkbox("Enabled", (bool*)&Light->Enabled)
         + ImGui::SliderFloat4("Position", Light->Position.e, -4.f, 4.f)
-        + ImGui::ColorEdit3("Ambient", Light->Ambient.e)
         + ImGui::ColorEdit3("Ambient", Light->Ambient.e)
         + ImGui::ColorEdit3("Diffuse", Light->Diffuse.e)
         + ImGui::ColorEdit3("Specular", Light->Specular.e)

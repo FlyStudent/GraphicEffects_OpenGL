@@ -4,3 +4,4 @@
 /.vscode
 /imgui.ini
 /media/*.cache
+*.exe

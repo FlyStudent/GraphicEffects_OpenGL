@@ -22,7 +22,9 @@ public:
 
     // Textures
     GLuint DiffuseTexture = 0;
+    GLuint SDiffuseTexture = 0;
     GLuint EmissiveTexture = 0;
+    GLuint SEmissiveTexture = 0;
 
     // ImGui debug function to edit lights
     void InspectLights();
