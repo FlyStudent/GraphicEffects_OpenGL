@@ -62,6 +62,7 @@ in vec3 vNormal;
 uniform mat4 uProjection;
 uniform vec3 uViewPosition;
 uniform bool uGamma;
+uniform float uBrightness;
 
 uniform sampler2D uDiffuseTexture;
 uniform sampler2D uEmissiveTexture;
@@ -104,7 +105,7 @@ void main()
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
     
     float brightness = dot(oColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-    if(brightness > 0.5)
+    if(brightness > uBrightness)
         BloomoColor = vec4(oColor.rgb, 1.0);
     else
        BloomoColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -141,7 +142,7 @@ in vec2 TexCoords;
 
 // uniforms
 uniform sampler2D uScreenTexture;
-uniform sampler2D uBloomTexture
+uniform sampler2D uBloomTexture;
 
 uniform bool uProcess;
 uniform bool uGamma;
@@ -276,7 +277,7 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         
         glUseProgram(hdrProgram);
         glUniform1i(glGetUniformLocation(hdrProgram, "uScreenBuffer"), 0);
-        glUniform1i(glGetUniformLocation(blurProgram, "uBloomTexture"), 1);
+        glUniform1i(glGetUniformLocation(hdrProgram, "uBloomTexture"), 1);
 
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
@@ -314,20 +315,6 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
 
         unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
         glDrawBuffers(2, attachments);
-     
-        glGenFramebuffers(2, pingpongFBO);
-        glGenTextures(2, pingpongCBO);
-        for (unsigned int i = 0; i < 2; i++)
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
-            glBindTexture(GL_TEXTURE_2D, pingpongCBO[i]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongCBO[i], 0);
-        }
 
         // create render buffers instead of depth buffer
         glGenRenderbuffers(1, &RBO);
@@ -343,6 +330,23 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
             std::cout << "Framebuffer not complete." << std::endl;
         // Unbind
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    // Blur framebuffers
+    {
+        glGenFramebuffers(2, pingpongFBO);
+        glGenTextures(2, pingpongCBO);
+        for (unsigned int i = 0; i < 2; i++)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+            glBindTexture(GL_TEXTURE_2D, pingpongCBO[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongCBO[i], 0);
+        }
     }
 }
 
@@ -383,16 +387,15 @@ void demo_hdr::Update(const platform_io& IO)
 
 #pragma region Blur Process
     bool horizontal = true, first_iteration = true;
-    int amount = 8;
     glUseProgram(blurProgram);
-    for (unsigned int i = 0; i < amount; i++)
+    for (unsigned int i = 0; i < pingpongAmount; i++)
     {
         glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
         glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);
 
         if (first_iteration)
         {
-            glBindTexture(GL_TEXTURE_2D, hdrCBO);
+            glBindTexture(GL_TEXTURE_2D, bloomCBO);
             first_iteration = false;
         }
         else
@@ -401,7 +404,6 @@ void demo_hdr::Update(const platform_io& IO)
         }
 
         glDisable(GL_DEPTH_TEST);
-        glActiveTexture(GL_TEXTURE0);
         RenderQuad();
 
         horizontal = !horizontal;
@@ -446,7 +448,11 @@ void demo_hdr::DisplayDebugUI()
         ImGui::Checkbox("HDR", &processHdr);
         ImGui::Checkbox("Gamma", &processGamma);
         ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
+        ImGui::SliderFloat("Brightness clamp", &brightnessClamp, 0.f, 1.f);
+        ImGui::SliderInt("Blur amount", &pingpongAmount, 1, 20);
+
         ImGui::Spacing();
+
         ImGui::Checkbox("Wireframe", &Wireframe);
         if (ImGui::TreeNodeEx("Camera"))
         {
@@ -486,6 +492,7 @@ void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix
     
     // Gamma correction
     glUniform1i(glGetUniformLocation(Program, "uGamma"), processGamma);
+    glUniform1f(glGetUniformLocation(Program, "uBrightness"), brightnessClamp);
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);

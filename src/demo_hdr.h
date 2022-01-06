@@ -38,7 +38,9 @@ private:
     bool processHdr = true;
     bool processGamma = false;
     float exposure = 1.f;
+    float brightnessClamp = 0.5f;
 
+    int pingpongAmount = 8;
     unsigned int pingpongFBO[2];
     unsigned int pingpongCBO[2];
 
