@@ -15,8 +15,8 @@
 #include <iostream>
 #include "stb_image.h"
 
+#pragma region SHADERS
 const int LIGHT_BLOCK_BINDING_POINT = 0;
-
 static const char* gVertexShaderStr = R"GLSL(
 // Attributes
 layout(location = 0) in vec3 aPosition;
@@ -24,10 +24,10 @@ layout(location = 1) in vec2 aUV;
 layout(location = 2) in vec3 aNormal;
 
 // Uniforms
-uniform mat4 uProjection;
-uniform mat4 uModel;
-uniform mat4 uView;
-uniform mat4 uModelNormalMatrix;
+uniform highp mat4 uProjection;
+uniform highp mat4 uModel;
+uniform highp mat4 uView;
+uniform highp mat4 uModelNormalMatrix;
 
 // Varyings
 out vec2 vUV;
@@ -128,6 +128,7 @@ void main()
 {    
     FragColor = texture(skybox, TexCoords);
 })GLSL";
+#pragma endregion
 
 demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
     : demo_base(GLCache, GLDebug), GLDebug(GLDebug)
@@ -141,8 +142,6 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
             FragmentShaderConfig,
             gFragmentShaderStr,
         };
-
-        //this->Program = 
 
         this->SkyProgram = GL::CreateProgram(gVertexShaderCubeStr, gFragmentShaderCubeStr);
         this->ReflectiveProgram = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
@@ -263,12 +262,18 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
 
     std::vector<std::string> faces
     {
-        "media/Sky_NightTime01FT.png",
+        /*"media/Sky_NightTime01FT.png",
         "media/Sky_NightTime01BK.png",
         "media/Sky_NightTime01UP.png",
         "media/Sky_NightTime01DN.png",
         "media/Sky_NightTime01RT.png",
-        "media/Sky_NightTime01LF.png",
+        "media/Sky_NightTime01LF.png",*/
+    "media/right.jpg",
+    "media/left.jpg",
+    "media/top.jpg",
+    "media/bottom.jpg",
+    "media/front.jpg",
+    "media/back.jpg"
     };
 
     {
@@ -331,6 +336,22 @@ demo_skybox::~demo_skybox()
     glDeleteProgram(ReflectiveProgram);
     glDeleteProgram(SkyProgram);
 }
+void demo_skybox::RenderSkybox(const camera& cam, const mat4& projection) 
+{
+    glDepthMask(GL_FALSE);
+    glUseProgram(SkyProgram);
+    // ... set view and projection matrix
+
+    mat4 ViewMatrixWT = CameraGetInverseMatrixWT(cam);
+
+    glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "projection"), 1, GL_FALSE, projection.e);
+    glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "view"), 1, GL_FALSE, ViewMatrixWT.e);
+
+    glBindVertexArray(SkyVAO);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glDepthMask(GL_TRUE);
+}
 
 void demo_skybox::RenderEnvironmentMap(const v3& center) 
 {
@@ -349,7 +370,7 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
     glBindRenderbuffer(GL_RENDERBUFFER, depth);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
-
+    
     glViewport(0, 0, 128, 128);
     // render the scene then push the fbo in
     for (int i = 0; i < 6 ; i++)
@@ -359,25 +380,38 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
         RenderingCamera.SetFace(i);
 
         //render the scene in the fbo
-        mat4 ProjectionMatrixUnit = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
+        //mat4 ProjectionMatrixUnit = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
+        mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(-90.f), 1.f, 0.1f, 100.f);
         mat4 ViewMatrix = CameraGetInverseMatrix(RenderingCamera);
         mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
-        mat4 ViewMatrixWT = CameraGetInverseMatrixWT(Camera);
-        
+        mat4 ViewMatrixWT = CameraGetInverseMatrixWT(RenderingCamera);
+
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
-        glUseProgram(SkyProgram);
-        // ... set view and projection matrix
+        RenderSkybox(RenderingCamera, ProjectionMatrix);
 
-        glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "projection"), 1, GL_FALSE, ProjectionMatrixUnit.e);
-        glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "view"), 1, GL_FALSE, ViewMatrixWT.e);
+        this->RenderTavernEnv(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
-        glBindVertexArray(SkyVAO);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        // Render sphere
 
-        this->RenderTavernEnv(ProjectionMatrixUnit, ViewMatrix, ModelMatrix);
+        glUseProgram(Program);
+        ModelMatrix = Mat4::Translate(position);
+        mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+
+        glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+        glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, ModelMatrix.e);
+        glUniformMatrix4fv(glGetUniformLocation(Program, "uView"), 1, GL_FALSE, ViewMatrix.e);
+        glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
+        glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
+
+        // Bind uniform buffer and textures
+        glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
+
+        // Draw mesh
+        glBindVertexArray(SphereVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 2880);
+
     }
     
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -388,11 +422,13 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
 
 void demo_skybox::Update(const platform_io& IO)
 {
+    RenderEnvironmentMap({ 0,0,0 });
+
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
-
+    
     // Clear screen
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -402,24 +438,20 @@ void demo_skybox::Update(const platform_io& IO)
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
 
     mat4 ViewMatrixWT = CameraGetInverseMatrixWT(Camera);
- 
+    mat4 ProjectionMatrixUnit = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
+
     // Render Skybox 
-    glDepthMask(GL_FALSE);
-    glUseProgram(SkyProgram);
-    // ... set view and projection matrix
-        
-    glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "projection"), 1, GL_FALSE, ProjectionMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "view"), 1, GL_FALSE, ViewMatrixWT.e);
-
-    glBindVertexArray(SkyVAO);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glDepthMask(GL_TRUE);
-
+    RenderSkybox(Camera, ProjectionMatrix);
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
-    
-    // Render Sphere used to reflect
+    // Render Sphere using Reflection
+    position = { -2.f, Math::Cos(IO.Time) * -5.f, 0.f };
+    ModelMatrix = Mat4::Translate(position);
+
+    // Draw mesh
+    glBindVertexArray(SphereVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 2880);
+
     glUseProgram(ReflectiveProgram);
 
     mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));

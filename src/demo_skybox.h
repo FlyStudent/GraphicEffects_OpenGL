@@ -33,7 +33,7 @@ private:
     GLuint SkyVAO = 0;
     GLuint SkyBuffer = 0;
 
-
+    void RenderSkybox(const camera& cam, const mat4& projection);
 
     bool Wireframe = false;
 
@@ -43,5 +43,6 @@ private:
     GLuint SkyTexture = 0;
     GLuint EnvironmentTexture = 0;
 
+    v3 position = { 0.f,0.f,0.f };
     bool Dynamic = false;
 };

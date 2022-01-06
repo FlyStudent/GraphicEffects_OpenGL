@@ -47,12 +47,15 @@ void camera::SetFace(int i)
 {
     switch (i) 
     {
-        case 0: Pitch = 0; Yaw = 90; break;
-        case 1: Pitch = 0; Yaw = -90; break;
-        case 2: Pitch = -90; Yaw = 180; break;
-        case 3: Pitch = 90; Yaw = 180; break;
-        case 4: Pitch = 0; Yaw = 180; break;
-        case 5: Pitch = 0; Yaw = 0; break;
+    case 0: Pitch = Math::ToRadians(0.f); Yaw = Math::ToRadians(90.f); break;
+        case 1: Pitch = Math::ToRadians(0.f); Yaw = Math::ToRadians(-90.f); break;
+
+        case 2: Pitch = Math::ToRadians(90.f); Yaw = Math::ToRadians(180.f); break;
+        case 3: Pitch = Math::ToRadians(-90.f); Yaw = Math::ToRadians(180.f); break;
+       
+        
+        case 5: Pitch = Math::ToRadians(0.f); Yaw = -Math::ToRadians(0.f); break;
+        case 4: Pitch = Math::ToRadians(0.f); Yaw = Math::ToRadians(180.f); break;
     }
 }
 
