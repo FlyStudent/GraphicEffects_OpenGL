@@ -73,7 +73,9 @@ layout(std140) uniform uLightBlock
 };
 
 // Shader outputs
-out vec4 oColor;
+//out vec4 oColor;
+layout (location = 0) out vec4 oColor;
+layout (location = 1) out vec4 BloomoColor;
 
 light_shade_result get_lights_shading()
 {
@@ -101,6 +103,12 @@ void main()
     // Apply light color
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
     
+    float brightness = dot(oColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if(brightness > 0.5)
+        BloomoColor = vec4(oColor.rgb, 1.0);
+    else
+       BloomoColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
     // Apply gamma correction
     if (uGamma)
     {
@@ -133,6 +141,8 @@ in vec2 TexCoords;
 
 // uniforms
 uniform sampler2D uScreenTexture;
+uniform sampler2D uBloomTexture
+
 uniform bool uProcess;
 uniform bool uGamma;
 uniform float uExposure;
@@ -144,6 +154,10 @@ void main()
 {
 	const float gamma = 2.2;
 	vec3 hdrColor = texture(uScreenTexture, TexCoords).rgb;
+    vec3 bloomColor = texture(uBloomTexture, TexCoords).rgb;
+
+    hdrColor = hdrColor + bloomColor;
+
 	if (uProcess)
 	{
 		vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
@@ -155,6 +169,41 @@ void main()
 	}
     
     FragColor = vec4(hdrColor, 1.0);
+})GLSL";
+#pragma endregion
+
+#pragma region BLUR FS
+static const char* BlurFragmentShaderStr = R"GLSL(
+out vec4 FragColor;
+
+in vec2 TexCoords;
+
+uniform sampler2D screenTexture;
+uniform bool horizontal;
+uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+void main()
+{
+    vec2 tex_offset = 1.0 / textureSize(screenTexture, 0);
+    vec3 result = texture(screenTexture, TexCoords).rgb * weight[0];
+    if(horizontal)
+    {
+        for(int i = 0; i < 5; i++)
+        {
+            result += texture(screenTexture, TexCoords + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+            result += texture(screenTexture, TexCoords - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+        }
+    }
+    else
+    {
+        for(int i = 0; i < 5; i++)
+        {
+            result += texture(screenTexture, TexCoords + vec2(0.0, tex_offset.x * i)).rgb * weight[i];
+            result += texture(screenTexture, TexCoords - vec2(0.0, tex_offset.x * i)).rgb * weight[i];
+        }
+    }
+    FragColor = vec4(result, 1.0);
+
 })GLSL";
 #pragma endregion
 
@@ -174,6 +223,8 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
 
         hdrProgram = GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
+
+        blurProgram = GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
     }
     
     // Create a vertex array and bind attribs onto the vertex buffer
@@ -220,8 +271,12 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
 
     // Set initial uniforms
     {
+        glUseProgram(blurProgram);
+        glUniform1i(glGetUniformLocation(blurProgram, "screenTexture"), 0);
+        
         glUseProgram(hdrProgram);
-        glUniform1i(glGetUniformLocation(hdrProgram, "uScreenBuffer"), 0); // 0 because Only one texture will be attached
+        glUniform1i(glGetUniformLocation(hdrProgram, "uScreenBuffer"), 0);
+        glUniform1i(glGetUniformLocation(blurProgram, "uBloomTexture"), 1);
 
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
@@ -233,17 +288,46 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
     {
         glGenFramebuffers(1, &FBO);
         glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-
+        
         // Create color buffer
-        glGenTextures(1, &CBO);
-        glBindTexture(GL_TEXTURE_2D, CBO);
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        // set up floating point framebuffer to render scene to
+        GLuint colorBuffers[2];
+        glGenTextures(2, colorBuffers);
+        for (unsigned int i = 0; i < 2; i++)
+        {
+            glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+            glTexImage2D(
+                GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL
+            );
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            // attach texture to framebuffer
+            glFramebufferTexture2D(
+                GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0
+            );
+        }
+        hdrCBO = colorBuffers[0];
+        bloomCBO = colorBuffers[1];
+
+        unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+        glDrawBuffers(2, attachments);
+     
+        glGenFramebuffers(2, pingpongFBO);
+        glGenTextures(2, pingpongCBO);
+        for (unsigned int i = 0; i < 2; i++)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+            glBindTexture(GL_TEXTURE_2D, pingpongCBO[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongCBO[i], 0);
+        }
 
         // create render buffers instead of depth buffer
         glGenRenderbuffers(1, &RBO);
@@ -252,7 +336,6 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
         // Attach buffers
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, CBO, 0);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 
         // Check buffer
@@ -279,7 +362,7 @@ void demo_hdr::Update(const platform_io& IO)
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
-    
+
 
 #pragma region Draw scene in FBO
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
@@ -298,23 +381,51 @@ void demo_hdr::Update(const platform_io& IO)
 
 #pragma endregion
 
-#pragma region Draw post-process HDR
+#pragma region Blur Process
+    bool horizontal = true, first_iteration = true;
+    int amount = 8;
+    glUseProgram(blurProgram);
+    for (unsigned int i = 0; i < amount; i++)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+        glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);
 
-        glUseProgram(hdrProgram);
-        // Set uniforms
-        glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
-        glUniform1i(glGetUniformLocation(hdrProgram, "uGamma"), processGamma);
-        glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
+        if (first_iteration)
+        {
+            glBindTexture(GL_TEXTURE_2D, hdrCBO);
+            first_iteration = false;
+        }
+        else
+        {
+            glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
+        }
 
         glDisable(GL_DEPTH_TEST);
-        glBindTexture(GL_TEXTURE_2D, CBO);
-        
+        glActiveTexture(GL_TEXTURE0);
         RenderQuad();
+
+        horizontal = !horizontal;
     }
+#pragma endregion
+
+#pragma region Draw post-process HDR
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(hdrProgram);
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
+    glUniform1i(glGetUniformLocation(hdrProgram, "uGamma"), processGamma);
+    glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
+
+    glDisable(GL_DEPTH_TEST);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, hdrCBO);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
+        
+    RenderQuad();
 #pragma endregion
     
     // Render tavern wireframe

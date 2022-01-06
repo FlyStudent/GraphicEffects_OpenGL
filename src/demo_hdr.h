@@ -32,15 +32,21 @@ private:
     GLuint VAO = 0;
     GLuint quadVAO = 0;
 
+    GLuint blurProgram = 0;
+
     // HDR objects
     bool processHdr = true;
-    bool processGamma = true;
+    bool processGamma = false;
     float exposure = 1.f;
+
+    unsigned int pingpongFBO[2];
+    unsigned int pingpongCBO[2];
 
     GLuint hdrProgram = 0;
     GLuint FBO = 0;
     GLuint RBO = 0;
-    GLuint CBO = 0;
+    GLuint hdrCBO = 0;
+    GLuint bloomCBO = 0;
 
     tavern_scene TavernScene;
 

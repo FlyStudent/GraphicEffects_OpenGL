@@ -245,7 +245,6 @@ demo_bloom::demo_bloom(GL::cache& GLCache, GL::debug& GLDebug, const platform_io
         fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
             std::cout << "Ping-Pong Framebuffer error: " << fboStatus << std::endl;
-
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
