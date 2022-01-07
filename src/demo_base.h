@@ -18,7 +18,6 @@ public:
     virtual void Update(const platform_io& IO);
 
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
-    void RenderTavernEnv(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void DisplayDebugUI();
 
 private:

@@ -290,13 +290,8 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
                 glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
                     0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
                 );
-                stbi_image_free(data);
             }
-            else
-            {
-                std::cout << "Cubemap tex failed to load at path: " << faces[i] << std::endl;
                 stbi_image_free(data);
-            }
 
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -304,9 +299,9 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
         }
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
     }
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-
+    
     // Create Empty cubemap
     {
         glGenTextures(1, &EnvironmentTexture);
@@ -336,12 +331,11 @@ demo_skybox::~demo_skybox()
     glDeleteProgram(ReflectiveProgram);
     glDeleteProgram(SkyProgram);
 }
+
 void demo_skybox::RenderSkybox(const camera& cam, const mat4& projection) 
 {
     glDepthMask(GL_FALSE);
     glUseProgram(SkyProgram);
-    // ... set view and projection matrix
-
     mat4 ViewMatrixWT = CameraGetInverseMatrixWT(cam);
 
     glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "projection"), 1, GL_FALSE, projection.e);
@@ -353,6 +347,12 @@ void demo_skybox::RenderSkybox(const camera& cam, const mat4& projection)
     glDepthMask(GL_TRUE);
 }
 
+void demo_skybox::RenderScene() 
+{
+
+}
+
+//Update environment skybox 
 void demo_skybox::RenderEnvironmentMap(const v3& center) 
 {
     // Set center of rendering
@@ -380,7 +380,6 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
         RenderingCamera.SetFace(i);
 
         //render the scene in the fbo
-        //mat4 ProjectionMatrixUnit = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
         mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(-90.f), 1.f, 0.1f, 100.f);
         mat4 ViewMatrix = CameraGetInverseMatrix(RenderingCamera);
         mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
@@ -390,8 +389,7 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         RenderSkybox(RenderingCamera, ProjectionMatrix);
-
-        this->RenderTavernEnv(ProjectionMatrix, ViewMatrix, ModelMatrix);
+        RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
         // Render sphere
 

@@ -20,7 +20,7 @@ public:
     void DisplayDebugUI();
 
     void RenderEnvironmentMap(const v3& center);
-
+    void RenderScene();
 private:
     GL::debug& GLDebug;
 

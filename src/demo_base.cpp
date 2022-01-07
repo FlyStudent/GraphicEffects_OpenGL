@@ -212,31 +212,3 @@ void demo_base::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatri
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, TavernScene.MeshVertexCount);
 }
-
-void demo_base::RenderTavernEnv(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
-{
-    glEnable(GL_DEPTH_TEST);
-
-    // Use shader and configure its uniforms
-    glUseProgram(Program);
-
-    // Set uniforms
-    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
-    glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, ModelMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(Program, "uView"), 1, GL_FALSE, ViewMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
-    glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, RenderingCamera.Position.e);
-
-    // Bind uniform buffer and textures
-    glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, TavernScene.DiffuseTexture);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, TavernScene.EmissiveTexture);
-    glActiveTexture(GL_TEXTURE0); // Reset active texture just in case
-
-    // Draw mesh
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, TavernScene.MeshVertexCount);
-}
