@@ -20,7 +20,11 @@ public:
     void DisplayDebugUI();
 
     void RenderEnvironmentMap(const v3& center);
-    void RenderScene();
+    void RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMatrix, const v3& position, const camera& cam = {});
+    void RenderSceneWithReflection(const mat4& ProjectionMatrix, const mat4& ModelMatrix, const camera& cam);
+    void GenerateCubemap(GLuint& index, const float width, const float height, const GLint format, const GLint size);
+
+    void RenderDepthMap();
 private:
     GL::debug& GLDebug;
 
@@ -42,7 +46,8 @@ private:
 
     GLuint SkyTexture = 0;
     GLuint EnvironmentTexture = 0;
+    GLuint DepthTexture = 0;
 
     v3 position = { 0.f,0.f,0.f };
-    bool Dynamic = false;
+    bool Dynamic = true;
 };

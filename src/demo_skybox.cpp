@@ -302,22 +302,8 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
     }
     
-    // Create Empty cubemap
-    {
-        glGenTextures(1, &EnvironmentTexture);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, EnvironmentTexture);
-
-        for (unsigned int i = 0; i < faces.size(); i++)
-        {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-        }
-    }
+    GenerateCubemap(EnvironmentTexture, 128.f, 128.f, GL_RGB, GL_UNSIGNED_BYTE);
+    GenerateCubemap(DepthTexture, 1024.f, 1024.f, GL_DEPTH_COMPONENT, GL_FLOAT);
 
     RenderEnvironmentMap({0,0,0});
 };
@@ -347,9 +333,80 @@ void demo_skybox::RenderSkybox(const camera& cam, const mat4& projection)
     glDepthMask(GL_TRUE);
 }
 
-void demo_skybox::RenderScene() 
+
+void demo_skybox::GenerateCubemap(GLuint& index, const float width,const float height, const GLint format, const GLint size)
+{
+    glGenTextures(1, &index);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, index);
+
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, size, NULL);
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    }
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+void demo_skybox::RenderSceneWithReflection(const mat4& ProjectionMatrix, const mat4& ModelMatrix, const camera& cam)
 {
 
+    RenderScene(ProjectionMatrix, ModelMatrix, cam);
+    mat4 ViewMatrix = CameraGetInverseMatrix(cam);
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+
+    // Render Sphere
+    glUseProgram(ReflectiveProgram);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModel"), 1, GL_FALSE, ModelMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
+    glUniform3fv(glGetUniformLocation(ReflectiveProgram, "uViewPosition"), 1, Camera.Position.e);
+
+    glBindVertexArray(SphereVAO);
+    if (Dynamic)
+        glBindTexture(GL_TEXTURE_CUBE_MAP, EnvironmentTexture);
+    else
+        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+
+    glDrawArrays(GL_TRIANGLES, 0, 2880);
+
+}
+
+
+void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMatrix,const v3& position, const camera& cam = {})
+{
+    // Compute Matrixs
+    mat4 ViewMatrix = CameraGetInverseMatrix(cam);
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+
+    // Clear buffers
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    RenderSkybox(cam, ProjectionMatrix);
+    RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
+
+    mat4 model = Mat4::Translate(position);
+
+    glUseProgram(Program);
+
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, model.e);
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
+    glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, cam.Position.e);
+
+    // Bind uniform buffer and textures
+    glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
+
+    // Draw mesh
+    glBindVertexArray(SphereVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 2880);
 }
 
 //Update environment skybox 
@@ -385,31 +442,7 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
         mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
         mat4 ViewMatrixWT = CameraGetInverseMatrixWT(RenderingCamera);
 
-        glClearColor(0.f, 0.f, 0.f, 1.f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
-        RenderSkybox(RenderingCamera, ProjectionMatrix);
-        RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
-
-        // Render sphere
-
-        glUseProgram(Program);
-        ModelMatrix = Mat4::Translate(position);
-        mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
-
-        glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
-        glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, ModelMatrix.e);
-        glUniformMatrix4fv(glGetUniformLocation(Program, "uView"), 1, GL_FALSE, ViewMatrix.e);
-        glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
-        glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
-
-        // Bind uniform buffer and textures
-        glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
-
-        // Draw mesh
-        glBindVertexArray(SphereVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 2880);
-
+        RenderScene(ProjectionMatrix, ModelMatrix, RenderingCamera);
     }
     
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -418,63 +451,51 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
     */
 }
 
+void demo_skybox::RenderDepthMap() 
+{
+    GLuint depthMapFBO;
+
+    glGenFramebuffers(1, &depthMapFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, DepthTexture, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+    glViewport(0, 0, 1024.f, 1024.f);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    mat4 shadowProj = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
+    RenderScene(shadowProj, Mat4::Identity(), TavernScene.Lights[0].Position.rgb);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 void demo_skybox::Update(const platform_io& IO)
 {
+    // Render New Cubemap For reflection
     RenderEnvironmentMap({ 0,0,0 });
 
+    //Compute AspectRatio
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
-    Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
-    
-    // Clear screen
-    glClearColor(0.f, 0.f, 0.f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // Update Camera and misc
+    Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
+    position = { -2.f, Math::Cos(IO.Time) * -5.f, 0.f };
+
+    //Compute basic matrix
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
-    mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
 
-    mat4 ViewMatrixWT = CameraGetInverseMatrixWT(Camera);
-    mat4 ProjectionMatrixUnit = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
 
-    // Render Skybox 
-    RenderSkybox(Camera, ProjectionMatrix);
-    // Render tavern
-    this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
-    // Render Sphere using Reflection
-    position = { -2.f, Math::Cos(IO.Time) * -5.f, 0.f };
-    ModelMatrix = Mat4::Translate(position);
-
-    // Draw mesh
-    glBindVertexArray(SphereVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 2880);
-
-    glUseProgram(ReflectiveProgram);
-
-    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
-
-    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModel"), 1, GL_FALSE, ModelMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
-    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
-    glUniform3fv(glGetUniformLocation(ReflectiveProgram, "uViewPosition"), 1, Camera.Position.e);
-
-    glBindVertexArray(SphereVAO);
-    if (Dynamic)
-        glBindTexture(GL_TEXTURE_CUBE_MAP, EnvironmentTexture);
-    else 
-        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
-
-    glDrawArrays(GL_TRIANGLES, 0, 2880);
-
-    // Render tavern wireframe
-    if (Wireframe)
-    {
-        GLDebug.Wireframe.BindBuffer(TavernScene.MeshBuffer, TavernScene.MeshDesc.Stride, TavernScene.MeshDesc.PositionOffset, TavernScene.MeshVertexCount);
-        GLDebug.Wireframe.DrawArray(0, TavernScene.MeshVertexCount, ProjectionMatrix * ViewMatrix * ModelMatrix);
-    }
-
+    RenderSceneWithReflection(ProjectionMatrix, ModelMatrix, Camera);
+    
     // Display debug UI
     this->DisplayDebugUI();
 }
@@ -484,15 +505,7 @@ void demo_skybox::DisplayDebugUI()
     if (ImGui::TreeNodeEx("demo_Skybox", ImGuiTreeNodeFlags_Framed))
     {
         // Debug display
-        ImGui::Checkbox("Wireframe", &Wireframe);
         ImGui::Checkbox("Dynamic Reflection", &Dynamic);
-        if (ImGui::TreeNodeEx("Camera"))
-        {
-            ImGui::Text("Position: (%.2f, %.2f, %.2f)", Camera.Position.x, Camera.Position.y, Camera.Position.z);
-            ImGui::Text("Pitch: %.2f", Math::ToDegrees(Camera.Pitch));
-            ImGui::Text("Yaw: %.2f", Math::ToDegrees(Camera.Yaw));
-            ImGui::TreePop();
-        }
         TavernScene.InspectLights();
 
         ImGui::TreePop();
