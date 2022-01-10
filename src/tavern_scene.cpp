@@ -61,9 +61,8 @@ tavern_scene::tavern_scene(GL::cache& GLCache)
     // Gen texture
     {
         DiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS);
-        SDiffuseTexture  = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
+        //SDiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
         EmissiveTexture = GLCache.LoadTexture("media/fantasy_game_inn_emissive.png", IMG_FLIP | IMG_GEN_MIPMAPS);
-        SEmissiveTexture = GLCache.LoadTexture("media/fantasy_game_inn_emissive.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
     }
     
     // Gen light uniform buffer

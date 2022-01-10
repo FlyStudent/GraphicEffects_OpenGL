@@ -211,6 +211,9 @@ void main()
 demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO)
     : GLDebug(GLDebug), TavernScene(GLCache)
 {
+    if (processGamma)
+        glEnable(GL_FRAMEBUFFER_SRGB);
+
     // Create shader
     {
         // Assemble fragment shader strings (defines + code)
@@ -364,7 +367,7 @@ void demo_hdr::Update(const platform_io& IO)
 
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
-
+    
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
 
 
@@ -418,7 +421,7 @@ void demo_hdr::Update(const platform_io& IO)
     glUseProgram(hdrProgram);
     // Set uniforms
     glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
-    glUniform1i(glGetUniformLocation(hdrProgram, "uGamma"), processGamma);
+    glUniform1i(glGetUniformLocation(hdrProgram, "uGamma"), false);
     glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
 
     glDisable(GL_DEPTH_TEST);
@@ -446,7 +449,9 @@ void demo_hdr::DisplayDebugUI()
     {
         // Debug display
         ImGui::Checkbox("HDR", &processHdr);
-        ImGui::Checkbox("Gamma", &processGamma);
+        if (ImGui::Checkbox("Gamma", &processGamma));
+            processGamma ? glEnable(GL_FRAMEBUFFER_SRGB) : glDisable(GL_FRAMEBUFFER_SRGB);
+
         ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
         ImGui::SliderFloat("Brightness clamp", &brightnessClamp, 0.f, 1.f);
         ImGui::SliderInt("Blur amount", &pingpongAmount, 1, 20);
@@ -474,7 +479,6 @@ void demo_hdr::RenderQuad()
     glBindVertexArray(0);
 }
 
-
 void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
 {
     glEnable(GL_DEPTH_TEST);
@@ -491,25 +495,16 @@ void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix
     glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
     
     // Gamma correction
-    glUniform1i(glGetUniformLocation(Program, "uGamma"), processGamma);
+    //glUniform1i(glGetUniformLocation(Program, "uGamma"), processGamma);
     glUniform1f(glGetUniformLocation(Program, "uBrightness"), brightnessClamp);
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
-    if (processGamma) // Texture not the same according to gamma processing
-    {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, TavernScene.SDiffuseTexture);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, TavernScene.SEmissiveTexture);
-    }
-    else
-    {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, TavernScene.DiffuseTexture);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, TavernScene.EmissiveTexture);
-    }
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, TavernScene.DiffuseTexture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, TavernScene.EmissiveTexture);
+
     glActiveTexture(GL_TEXTURE0); // Reset active texture just in case
     
     // Draw mesh

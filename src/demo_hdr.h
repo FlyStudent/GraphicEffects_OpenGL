@@ -36,7 +36,7 @@ private:
 
     // HDR objects
     bool processHdr = true;
-    bool processGamma = false;
+    bool processGamma = true;
     float exposure = 1.f;
     float brightnessClamp = 0.5f;
 
