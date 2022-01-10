@@ -14,6 +14,7 @@
 
 const int LIGHT_BLOCK_BINDING_POINT = 0;
 
+#pragma region BASIC VS
 static const char* gVertexShaderStr = R"GLSL(
 // Attributes
 layout(location = 0) in vec3 aPosition;
@@ -39,8 +40,11 @@ void main()
     vNormal = (uModelNormalMatrix * vec4(aNormal, 0.0)).xyz;
     gl_Position = uProjection * uView * pos4;
 })GLSL";
+#pragma endregion
 
+#pragma region BASIC FS
 static const char* gFragmentShaderStr = R"GLSL(
+
 // Varyings
 in vec2 vUV;
 in vec3 vPos;
@@ -51,7 +55,6 @@ uniform mat4 uProjection;
 uniform vec3 uViewPosition;
 
 uniform sampler2D uDiffuseTexture;
-uniform sampler2D uEmissiveTexture;
 
 // Uniform blocks
 layout(std140) uniform uLightBlock
@@ -83,11 +86,12 @@ void main()
     vec3 diffuseColor  = gDefaultMaterial.diffuse * lightResult.diffuse * texture(uDiffuseTexture, vUV).rgb;
     vec3 ambientColor  = gDefaultMaterial.ambient * lightResult.ambient;
     vec3 specularColor = gDefaultMaterial.specular * lightResult.specular;
-    vec3 emissiveColor = gDefaultMaterial.emission + texture(uEmissiveTexture, vUV).rgb;
+    vec3 emissiveColor = gDefaultMaterial.emission;
     
     // Apply light color
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
 })GLSL";
+#pragma endregion
 
 
 demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
@@ -108,19 +112,36 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
         this->Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
     }
 
-    // Create render pipeline
-    this->Program = GL::CreateProgram(gVertexShaderStr, gFragmentShaderStr);
 
-    Texture = GLCache.LoadTexture("media/brick.png");
+    // (Default light, standard values)
+    {
+        GL::light DefaultLight = {};
+        DefaultLight.Enabled = true;
+        DefaultLight.Position = { 0.0f, 0.0f, 0.0f, 1.f };
+        DefaultLight.Ambient = { 0.2f, 0.2f, 0.2f };
+        DefaultLight.Diffuse = { 1.0f, 1.0f, 1.0f };
+        DefaultLight.Specular = { 0.0f, 0.0f, 0.0f };
+        DefaultLight.Attenuation = { 1.0f, 0.0f, 0.0f };
 
-    // Create a quad Vertex Object for FBO
+        // Sun light
+        this->Lights[0] = DefaultLight;
+        this->Lights[0].Position = { 1.f, 3.f, 1.f, 0.f }; // Directional light
+        this->Lights[0].Diffuse = Color::RGB(0x374D58);
+    }
+
+
+    Texture = GLCache.LoadTexture("media/brick.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+
+    // Create a quad Vertex Object
     {
         float quadVertices[] = {
             // positions        // texture Coords
-            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+             1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
         };
         // setup plane VAO
         GLuint quadVBO = 0;
@@ -132,9 +153,11 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
 
         glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
     }
 
     // Set uniforms that won't change
@@ -168,7 +191,8 @@ void demo_normalmapping::Update(const platform_io& IO)
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
 
     // Clear screen
-    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glEnable(GL_DEPTH_TEST);
+    glClearColor(0.7f, 0.4f, 0.4f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
@@ -203,8 +227,6 @@ void demo_normalmapping::DisplayDebugUI()
 
 void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
 {
-    glEnable(GL_DEPTH_TEST);
-
     // Use shader and configure its uniforms
     glUseProgram(Program);
 
@@ -226,9 +248,8 @@ void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& V
 
 void demo_normalmapping::RenderQuad()
 {
-
     glBindVertexArray(quadVAO);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
 

@@ -269,8 +269,6 @@ demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-
-        
     }
 
     // Set initial uniforms
