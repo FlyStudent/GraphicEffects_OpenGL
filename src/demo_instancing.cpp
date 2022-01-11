@@ -10,7 +10,7 @@
 #include "maths.h"
 #include "mesh.h"
 
-#include "demo_normalmapping.h"
+#include "demo_instancing.h"
 
 const int LIGHT_BLOCK_BINDING_POINT = 0;
 
@@ -20,6 +20,7 @@ static const char* gVertexShaderStr = R"GLSL(
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUV;
 layout(location = 2) in vec3 aNormal;
+layout(location = 3) in vec3 aOffset;
 
 // Uniforms
 uniform mat4 uProjection;
@@ -38,6 +39,7 @@ void main()
     vec4 pos4 = (uModel * vec4(aPosition, 1.0));
     vPos = pos4.xyz / pos4.w;
     vNormal = (uModelNormalMatrix * vec4(aNormal, 0.0)).xyz;
+    pos4.xyz += aOffset; 
     gl_Position = uProjection * uView * pos4;
 })GLSL";
 #pragma endregion
@@ -94,7 +96,7 @@ void main()
 #pragma endregion
 
 
-demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
+demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
     : GLDebug(GLDebug)
 {
     Lights.resize(LightCount);
@@ -117,7 +119,7 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
     {
         GL::light DefaultLight = {};
         DefaultLight.Enabled = true;
-        DefaultLight.Position = { 0.0f, 0.0f, 0.0f, 1.f };
+        DefaultLight.Position = { 0.0f, 0.0f, 1.0f, 4.f };
         DefaultLight.Ambient = { 0.2f, 0.2f, 0.2f };
         DefaultLight.Diffuse = { 1.0f, 1.0f, 1.0f };
         DefaultLight.Specular = { 0.0f, 0.0f, 0.0f };
@@ -125,8 +127,6 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
 
         // Sun light
         this->Lights[0] = DefaultLight;
-        this->Lights[0].Position = { 1.f, 3.f, 1.f, 0.f }; // Directional light
-        this->Lights[0].Diffuse = Color::RGB(0x374D58);
     }
 
 
@@ -174,16 +174,47 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
         glBindBuffer(GL_UNIFORM_BUFFER, LightsUniformBuffer);
         glBufferData(GL_UNIFORM_BUFFER, LightCount * sizeof(GL::light), Lights.data(), GL_DYNAMIC_DRAW);
     }
+
+    v3 translations[100];
+    // Instancying 100 quad
+    {
+        int index = 0;
+        float offset = 2.f;
+        for (float y = -50.f; y < 50.f; y += 10.f)
+            for (float x = -50.f; x < 50.f; x += 10.f)
+                translations[index++] = { (float)x + offset, 0.f, (float)y + offset };
+
+        glUseProgram(Program);
+        for (unsigned int i = 0; i < 100; i++)
+            glUniform3f(glGetUniformLocation(Program, ("offsets[" + std::to_string(i) + "]").c_str()), translations[i].x, translations[i].y, translations[i].z);
+    }
+
+    // Generate offset Buffer
+    {
+        GLuint instanceVBO = 0;
+        glGenBuffers(1, &instanceVBO);
+
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * 100, &translations[0], GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glVertexAttribDivisor(3, 1);
+    }
 }
 
-demo_normalmapping::~demo_normalmapping()
+demo_instancing::~demo_instancing()
 {
     // Cleanup GL
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteProgram(Program);
 }
 
-void demo_normalmapping::Update(const platform_io& IO)
+void demo_instancing::Update(const platform_io& IO)
 {
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
@@ -192,7 +223,7 @@ void demo_normalmapping::Update(const platform_io& IO)
 
     // Clear screen
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.7f, 0.4f, 0.4f, 1.f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
@@ -206,7 +237,7 @@ void demo_normalmapping::Update(const platform_io& IO)
     this->DisplayDebugUI();
 }
 
-void demo_normalmapping::DisplayDebugUI()
+void demo_instancing::DisplayDebugUI()
 {
     if (ImGui::TreeNodeEx("demo_base", ImGuiTreeNodeFlags_Framed))
     {
@@ -225,7 +256,7 @@ void demo_normalmapping::DisplayDebugUI()
     }
 }
 
-void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
+void demo_instancing::RenderScene(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
 {
     // Use shader and configure its uniforms
     glUseProgram(Program);
@@ -246,10 +277,10 @@ void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& V
     RenderQuad();
 }
 
-void demo_normalmapping::RenderQuad()
+void demo_instancing::RenderQuad()
 {
     glBindVertexArray(quadVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
     glBindVertexArray(0);
 }
 
@@ -268,7 +299,7 @@ static bool EditLight(GL::light* Light)
     return Result;
 }
 
-void demo_normalmapping::InspectLights()
+void demo_instancing::InspectLights()
 {
     if (ImGui::TreeNodeEx("Lights"))
     {

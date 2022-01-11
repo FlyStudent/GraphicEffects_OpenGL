@@ -10,11 +10,11 @@
 
 #include "tavern_scene.h"
 
-class demo_normalmapping : public demo
+class demo_instancing : public demo
 {
 public:
-    demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug);
-    virtual ~demo_normalmapping();
+    demo_instancing(GL::cache& GLCache, GL::debug& GLDebug);
+    virtual ~demo_instancing();
     virtual void Update(const platform_io& IO);
 
     void RenderScene(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
@@ -37,6 +37,7 @@ private:
     // GL objects needed by this demo
     GLuint Program = 0;
     GLuint quadVAO = 0;
+    GLuint instanceVBO = 0;
     GLuint Texture = 0;
 
     bool Wireframe = false;
