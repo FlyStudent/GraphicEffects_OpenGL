@@ -10,6 +10,27 @@
 
 #include "tavern_scene.h"
 
+#define INSTANCE 1000
+#define ASTEROID_FIELD
+
+class asteroid_mesh
+{
+public:
+    asteroid_mesh(GL::cache& GLCache);
+
+    void Draw(float VAO);
+
+    // Mesh
+    GLuint MeshBuffer = 0;
+    int MeshVertexCount = 0;
+    vertex_descriptor MeshDesc;
+    // Textures
+    GLuint DiffuseTexture = 0;
+
+private:
+
+};
+
 class demo_instancing : public demo
 {
 public:
@@ -21,6 +42,7 @@ public:
     void DisplayDebugUI();
     void InspectLights();
     void RenderQuad();
+    void RenderAsteroids();
 
 
     GLuint LightsUniformBuffer;
@@ -30,6 +52,9 @@ private:
     GL::debug& GLDebug;
     std::vector<GL::light> Lights;
 
+#ifdef ASTEROID_FIELD
+    mat4 modelMatrices[INSTANCE];
+#endif
 
     // 3d camera
     camera Camera = {};
@@ -37,8 +62,10 @@ private:
     // GL objects needed by this demo
     GLuint Program = 0;
     GLuint quadVAO = 0;
-    GLuint instanceVBO = 0;
     GLuint Texture = 0;
+
+    asteroid_mesh asteroid;
+    GLuint asteroidVAO = 0;
 
     bool Wireframe = false;
 };

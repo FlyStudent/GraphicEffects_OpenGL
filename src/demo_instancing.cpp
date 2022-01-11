@@ -12,7 +12,6 @@
 
 #include "demo_instancing.h"
 
-#define INSTANCE 1000
 
 const int LIGHT_BLOCK_BINDING_POINT = 0;
 
@@ -97,9 +96,38 @@ void main()
 })GLSL";
 #pragma endregion
 
+asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
+{
+    // Create mesh
+    {
+        // Use vbo from GLCache
+        MeshBuffer = GLCache.LoadObj("media/planet.obj", 1.f, &this->MeshVertexCount);
+
+        MeshDesc.Stride = sizeof(vertex_full);
+        MeshDesc.HasNormal = true;
+        MeshDesc.HasUV = true;
+        MeshDesc.PositionOffset = OFFSETOF(vertex_full, Position);
+        MeshDesc.UVOffset = OFFSETOF(vertex_full, UV);
+        MeshDesc.NormalOffset = OFFSETOF(vertex_full, Normal);
+    }
+
+    // Gen texture
+    {
+        DiffuseTexture = GLCache.LoadTexture("media/planet.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+    }
+}
+
+void asteroid_mesh::Draw(float VAO)
+{
+    glBindTexture(GL_TEXTURE_2D, DiffuseTexture);
+    // Draw mesh
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, MeshVertexCount);
+}
+
 
 demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
-    : GLDebug(GLDebug)
+    : GLDebug(GLDebug), asteroid(GLCache)
 {
     Lights.resize(LightCount);
 
@@ -177,8 +205,9 @@ demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
         glBufferData(GL_UNIFORM_BUFFER, LightCount * sizeof(GL::light), Lights.data(), GL_DYNAMIC_DRAW);
     }
 
+#ifndef ASTEROID_FIELD
     v3 translations[INSTANCE];
-    // Instancying 100 quad
+    // Instancying quads
     {
         int index = 0;
         float offset = 2.f;
@@ -208,6 +237,56 @@ demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glVertexAttribDivisor(3, 1);
     }
+#else
+    // Create asteroid objects
+    {
+        glGenVertexArrays(1, &asteroidVAO);
+        glBindVertexArray(asteroidVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, asteroid.MeshBuffer);
+
+        vertex_descriptor& Desc = asteroid.MeshDesc;
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.PositionOffset);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.UVOffset);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.NormalOffset);
+    }
+
+    // Instance matrices
+    {
+        srand(ImGui::GetTime());
+        float radius = 50.f;
+        float offset = 2.5f;
+
+        auto displace = [](float offset)->float { return (rand() % (int)(2 * offset * 100)) / 100.f - offset;  };
+
+        for (int i = 0; i < INSTANCE; i++)
+    {
+        mat4 model = Mat4::Identity();
+        // position
+        float angle = (float)i / (float)INSTANCE * 360.f;
+        float displacement = displace(offset);
+        float x = sin(angle) * radius + displacement;
+        displacement = displace(offset);
+        float y = displacement * 0.4f;
+        displacement = displace(offset);
+        float z = cos(angle) * radius + displacement;
+        model = Mat4::Translate(v3{ x, y, z });
+
+        // scale
+        float scale = (rand() % 20) / 100.0f + 0.05f;
+        model = model * Mat4::Scale(v3{ scale, scale, scale });
+
+        //rotation
+        float rotation = rand() % 360;
+        model = model * Mat4::RotateX(rotation);
+
+        modelMatrices[i] = model;
+    }
+    }
+#endif
 }
 
 demo_instancing::~demo_instancing()
@@ -274,10 +353,14 @@ void demo_instancing::RenderScene(const mat4& ProjectionMatrix, const mat4& View
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
-    glBindTexture(GL_TEXTURE_2D, Texture);
 
+#ifdef ASTEROID_FIELD
+    RenderAsteroids();
+#else
+    glBindTexture(GL_TEXTURE_2D, Texture);
     // Draw mesh
     RenderQuad();
+#endif
 }
 
 void demo_instancing::RenderQuad()
@@ -285,6 +368,16 @@ void demo_instancing::RenderQuad()
     glBindVertexArray(quadVAO);
     glDrawArraysInstanced(GL_TRIANGLES, 0, 6, INSTANCE);
     glBindVertexArray(0);
+}
+
+void demo_instancing::RenderAsteroids()
+{
+    glUseProgram(Program);
+    for (int i = 0; i < INSTANCE; i++)
+    {
+        glUniformMatrix4fv(glGetUniformLocation(Program, "model"), sizeof(mat4), GL_FALSE, modelMatrices[i].e);
+        asteroid.Draw(asteroidVAO);
+    }
 }
 
 
