@@ -12,6 +12,8 @@
 
 #include "demo_instancing.h"
 
+#define INSTANCE 1000
+
 const int LIGHT_BLOCK_BINDING_POINT = 0;
 
 #pragma region BASIC VS
@@ -175,17 +177,18 @@ demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
         glBufferData(GL_UNIFORM_BUFFER, LightCount * sizeof(GL::light), Lights.data(), GL_DYNAMIC_DRAW);
     }
 
-    v3 translations[100];
+    v3 translations[INSTANCE];
     // Instancying 100 quad
     {
         int index = 0;
         float offset = 2.f;
-        for (float y = -50.f; y < 50.f; y += 10.f)
-            for (float x = -50.f; x < 50.f; x += 10.f)
-                translations[index++] = { (float)x + offset, 0.f, (float)y + offset };
+        for (float z = -50.f; z < 50.f; z += 10.f)
+            for (float y = -50.f; y < 50.f; y += 10.f)
+                for (float x = -50.f; x < 50.f; x += 10.f)
+                    translations[index++] = { (float)x + offset, (float)y + offset, (float)z + offset };
 
         glUseProgram(Program);
-        for (unsigned int i = 0; i < 100; i++)
+        for (unsigned int i = 0; i < INSTANCE; i++)
             glUniform3f(glGetUniformLocation(Program, ("offsets[" + std::to_string(i) + "]").c_str()), translations[i].x, translations[i].y, translations[i].z);
     }
 
@@ -197,7 +200,7 @@ demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
         glBindVertexArray(quadVAO);
         glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
         
-        glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * 100, &translations[0], GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * INSTANCE, &translations[0], GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
         glEnableVertexAttribArray(3);
         glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
@@ -280,7 +283,7 @@ void demo_instancing::RenderScene(const mat4& ProjectionMatrix, const mat4& View
 void demo_instancing::RenderQuad()
 {
     glBindVertexArray(quadVAO);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, INSTANCE);
     glBindVertexArray(0);
 }
 
