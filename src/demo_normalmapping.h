@@ -38,6 +38,10 @@ private:
     GLuint Program = 0;
     GLuint quadVAO = 0;
     GLuint Texture = 0;
+    GLuint NormalTexture = 0;
+
+    v3 Position = { 0, 0, 1.f };
+    v3 Rotation = { 0, 0, 0 };
 
     bool Wireframe = false;
 };

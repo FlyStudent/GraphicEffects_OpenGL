@@ -54,7 +54,9 @@ in vec3 vNormal;
 uniform mat4 uProjection;
 uniform vec3 uViewPosition;
 
+
 uniform sampler2D uDiffuseTexture;
+uniform sampler2D uNormalTexture;
 
 // Uniform blocks
 layout(std140) uniform uLightBlock
@@ -65,12 +67,14 @@ layout(std140) uniform uLightBlock
 // Shader outputs
 out vec4 oColor;
 
+vec3 normal;
+
 light_shade_result get_lights_shading()
 {
     light_shade_result lightResult = light_shade_result(vec3(0.0), vec3(0.0), vec3(0.0));
 	for (int i = 0; i < LIGHT_COUNT; ++i)
     {
-        light_shade_result light = light_shade(uLight[i], gDefaultMaterial.shininess, uViewPosition, vPos, normalize(vNormal));
+        light_shade_result light = light_shade(uLight[i], gDefaultMaterial.shininess, uViewPosition, vPos, normalize(normal));
         lightResult.ambient  += light.ambient;
         lightResult.diffuse  += light.diffuse;
         lightResult.specular += light.specular;
@@ -80,6 +84,40 @@ light_shade_result get_lights_shading()
 
 void main()
 {
+    // positions
+    vec3 pos1 = vec3(-1.0,  1.0, 0.0);
+    vec3 pos2 = vec3(-1.0, -1.0, 0.0);
+    vec3 pos3 = vec3( 1.0, -1.0, 0.0);
+    vec3 pos4 = vec3( 1.0,  1.0, 0.0);
+    // texture coordinates
+    vec2 uv1 = vec2(0.0, 1.0);
+    vec2 uv2 = vec2(0.0, 0.0);
+    vec2 uv3 = vec2(1.0, 0.0);
+    vec2 uv4 = vec2(1.0, 1.0);
+    // normal vector
+    vec3 nm = vec3(0.0, 0.0, 1.0);
+
+    vec3 edge1 = pos2 - pos1;
+    vec3 edge2 = pos3 - pos1;
+    vec2 deltaUV1 = uv2 - uv1;
+    vec2 deltaUV2 = uv3 - uv1;   
+
+    normal = texture(uNormalTexture, vUV).rgb;
+    normal = normalize(normal * 2.0 - 1.0);
+
+    vec3 tangent1;
+    vec3 bitangent1;
+
+    float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+    
+    tangent1.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+    tangent1.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+    tangent1.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+    
+    bitangent1.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+    bitangent1.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+    bitangent1.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
     // Compute phong shading
     light_shade_result lightResult = get_lights_shading();
     
@@ -117,7 +155,7 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
     {
         GL::light DefaultLight = {};
         DefaultLight.Enabled = true;
-        DefaultLight.Position = { 0.0f, 0.0f, 0.0f, 1.f };
+        DefaultLight.Position = { -0.5f, 0.0f, -0.5f, 4.f };
         DefaultLight.Ambient = { 0.2f, 0.2f, 0.2f };
         DefaultLight.Diffuse = { 1.0f, 1.0f, 1.0f };
         DefaultLight.Specular = { 0.0f, 0.0f, 0.0f };
@@ -125,12 +163,11 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
 
         // Sun light
         this->Lights[0] = DefaultLight;
-        this->Lights[0].Position = { 1.f, 3.f, 1.f, 0.f }; // Directional light
-        this->Lights[0].Diffuse = Color::RGB(0x374D58);
     }
 
 
     Texture = GLCache.LoadTexture("media/brick.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+    NormalTexture = GLCache.LoadTexture("media/bricknormal.png", IMG_FLIP | IMG_GEN_MIPMAPS);
 
     // Create a quad Vertex Object
     {
@@ -164,7 +201,7 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
     {
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
-        glUniform1i(glGetUniformLocation(Program, "uEmissiveTexture"), 1);
+        glUniform1i(glGetUniformLocation(Program, "uNormalTexture"), 1);
         glUniformBlockBinding(Program, glGetUniformBlockIndex(Program, "uLightBlock"), LIGHT_BLOCK_BINDING_POINT);
     }
 
@@ -192,12 +229,12 @@ void demo_normalmapping::Update(const platform_io& IO)
 
     // Clear screen
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.7f, 0.4f, 0.4f, 1.f);
+    glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
     mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
-    mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
+    mat4 ModelMatrix = Mat4::Translate(Position) * Mat4::RotateX(Math::ToRadians(Rotation.x)) * Mat4::RotateY(Math::ToRadians(Rotation.y)) * Mat4::RotateZ(Math::ToRadians(Rotation.z));
 
     // Render tavern
     this->RenderScene(ProjectionMatrix, ViewMatrix, ModelMatrix);
@@ -219,6 +256,13 @@ void demo_normalmapping::DisplayDebugUI()
             ImGui::Text("Yaw: %.2f", Math::ToDegrees(Camera.Yaw));
             ImGui::TreePop();
         }
+        if (ImGui::TreeNodeEx("Objet"))
+        {
+            ImGui::DragFloat3("Position: ", &Position.x);
+            ImGui::DragFloat3("Rotation: ", &Rotation.x);
+            ImGui::TreePop();
+        }
+
         InspectLights();
 
         ImGui::TreePop();
@@ -240,7 +284,11 @@ void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& V
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, NormalTexture);
+    glActiveTexture(GL_TEXTURE0);
 
     // Draw mesh
     RenderQuad();
