@@ -20,6 +20,8 @@ static const char* gVertexShaderStr = R"GLSL(
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUV;
 layout(location = 2) in vec3 aNormal;
+layout(location = 3) in vec3 aTangent;
+layout(location = 4) in vec3 aBitangent;
 
 // Uniforms
 uniform mat4 uProjection;
@@ -31,6 +33,7 @@ uniform mat4 uModelNormalMatrix;
 out vec2 vUV;
 out vec3 vPos;    // Vertex position in view-space
 out vec3 vNormal; // Vertex normal in view-space
+out mat3 TBN;
 
 void main()
 {
@@ -39,6 +42,13 @@ void main()
     vPos = pos4.xyz / pos4.w;
     vNormal = (uModelNormalMatrix * vec4(aNormal, 0.0)).xyz;
     gl_Position = uProjection * uView * pos4;
+
+    vec3 T = normalize(vec3(uModel * vec4(aTangent,   0.0)));
+    vec3 N = normalize(vec3(uModel * vec4(aNormal,    0.0)));
+    T = normalize(T - dot(T, N) * N);
+    vec3 B = cross(N, T);
+    TBN = mat3(T, B, N);    
+
 })GLSL";
 #pragma endregion
 
@@ -49,6 +59,7 @@ static const char* gFragmentShaderStr = R"GLSL(
 in vec2 vUV;
 in vec3 vPos;
 in vec3 vNormal;
+in mat3 TBN;
 
 // Uniforms
 uniform mat4 uProjection;
@@ -84,43 +95,13 @@ light_shade_result get_lights_shading()
 
 void main()
 {
-    // positions
-    vec3 pos1 = vec3(-1.0,  1.0, 0.0);
-    vec3 pos2 = vec3(-1.0, -1.0, 0.0);
-    vec3 pos3 = vec3( 1.0, -1.0, 0.0);
-    vec3 pos4 = vec3( 1.0,  1.0, 0.0);
-    // texture coordinates
-    vec2 uv1 = vec2(0.0, 1.0);
-    vec2 uv2 = vec2(0.0, 0.0);
-    vec2 uv3 = vec2(1.0, 0.0);
-    vec2 uv4 = vec2(1.0, 1.0);
-    // normal vector
-    vec3 nm = vec3(0.0, 0.0, 1.0);
-
-    vec3 edge1 = pos2 - pos1;
-    vec3 edge2 = pos3 - pos1;
-    vec2 deltaUV1 = uv2 - uv1;
-    vec2 deltaUV2 = uv3 - uv1;   
-
     normal = texture(uNormalTexture, vUV).rgb;
     normal = normalize(normal * 2.0 - 1.0);
-
-    vec3 tangent1;
-    vec3 bitangent1;
-
-    float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-    
-    tangent1.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-    tangent1.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-    tangent1.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-    
-    bitangent1.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-    bitangent1.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-    bitangent1.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+    normal = normalize(TBN * normal);
 
     // Compute phong shading
     light_shade_result lightResult = get_lights_shading();
-    
+
     vec3 diffuseColor  = gDefaultMaterial.diffuse * lightResult.diffuse * texture(uDiffuseTexture, vUV).rgb;
     vec3 ambientColor  = gDefaultMaterial.ambient * lightResult.ambient;
     vec3 specularColor = gDefaultMaterial.specular * lightResult.specular;
@@ -171,15 +152,66 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
 
     // Create a quad Vertex Object
     {
+        // positions
+        v3 pos1 = { -1.0, 1.0, 0.0 };
+        v3 pos2 = { -1.0, -1.0, 0.0 };
+        v3 pos3 = { 1.0, -1.0, 0.0 };
+        v3 pos4 = { 1.0, 1.0, 0.0 };
+        // texture coordinates
+        v2 uv1 = {0.0, 1.0};
+        v2 uv2 = {0.0, 0.0};
+        v2 uv3 = {1.0, 0.0};
+        v2 uv4 = {1.0, 1.0};
+        // normal vector
+        v3 nm = { 0.0, 0.0, 1.0 };
+
+        v3 tangent1, tangent2;
+        v3 bitangent1, bitangent2;
+
+        // TRIANGLE 1
+        v3 edge1 = pos2 - pos1;
+        v3 edge2 = pos3 - pos1;
+        v2 deltaUV1 = uv2 - uv1;
+        v2 deltaUV2 = uv3 - uv1;
+
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+        tangent1.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+        tangent1.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+        tangent1.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+        bitangent1.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+        bitangent1.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+        bitangent1.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
+        // TRIANGLE 2
+        edge1 = pos3 - pos1;
+        edge2 = pos4 - pos1;
+        deltaUV1 = uv3 - uv1;
+        deltaUV2 = uv4 - uv1;
+
+        f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+        tangent2.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+        tangent2.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+        tangent2.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+
+        bitangent2.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+        bitangent2.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+        bitangent2.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
         float quadVertices[] = {
-            // positions        // texture Coords
-            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-             1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-             1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-             1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-        };
+            // positions            // texcoords  // normal         // tangent                          // bitangent
+            pos1.x, pos1.y, pos1.z, uv1.x, uv1.y, nm.x, nm.y, nm.z, tangent1.x, tangent1.y, tangent1.z, bitangent1.x, bitangent1.y, bitangent1.z,
+            pos2.x, pos2.y, pos2.z, uv2.x, uv2.y, nm.x, nm.y, nm.z, tangent1.x, tangent1.y, tangent1.z, bitangent1.x, bitangent1.y, bitangent1.z,
+            pos3.x, pos3.y, pos3.z, uv3.x, uv3.y, nm.x, nm.y, nm.z, tangent1.x, tangent1.y, tangent1.z, bitangent1.x, bitangent1.y, bitangent1.z,
+                                   
+            pos1.x, pos1.y, pos1.z, uv1.x, uv1.y,  nm.x, nm.y, nm.z, tangent2.x, tangent2.y, tangent2.z, bitangent2.x, bitangent2.y, bitangent2.z,
+            pos3.x, pos3.y, pos3.z, uv3.x, uv3.y, nm.x, nm.y, nm.z, tangent2.x, tangent2.y, tangent2.z, bitangent2.x, bitangent2.y, bitangent2.z,
+            pos4.x, pos4.y, pos4.z, uv4.x, uv4.y, nm.x, nm.y, nm.z, tangent2.x, tangent2.y, tangent2.z, bitangent2.x, bitangent2.y, bitangent2.z
+        };                          
+
         // setup plane VAO
         GLuint quadVBO = 0;
         glGenVertexArrays(1, &quadVAO);
@@ -190,11 +222,15 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
 
         glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(5 * sizeof(float)));
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(8 * sizeof(float)));
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(11 * sizeof(float)));
     }
 
     // Set uniforms that won't change
