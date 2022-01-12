@@ -261,8 +261,7 @@ void demo_instancing::DisplayDebugUI()
             ImGui::Text("Yaw: %.2f", Math::ToDegrees(Camera.Yaw));
             ImGui::TreePop();
         }
-        if (ImGui::DragInt("Instance count", &InstanceCount))
-            GenMatrices();
+        ImGui::DragInt("Instance count", &InstanceCount);
 
         InspectLights();
 
@@ -272,10 +271,26 @@ void demo_instancing::DisplayDebugUI()
 
 void demo_instancing::GenMatrices()
 {
+    static int previousCount = 0;
+    static std::vector<v2> speeds;
+    static std::vector<v2> transforms;
+    static std::vector<v3> displacements;
+
     std::vector<mat4> modelMatrices;
     modelMatrices.resize(InstanceCount);
+    
+    bool newRange = previousCount != InstanceCount;
+    previousCount = InstanceCount;
+
+    if (newRange)
+    {
+        speeds.resize(InstanceCount);
+        displacements.resize(InstanceCount);
+        transforms.resize(InstanceCount);
+    }
     // Instance matrices
     {
+
         srand(ImGui::GetTime());
         float radius = 50.f;
         float offset = 25.f;
@@ -284,23 +299,29 @@ void demo_instancing::GenMatrices()
 
         for (int i = 0; i < InstanceCount; i++)
         {
+            if (newRange)
+            {
+                speeds[i] = { 0.f, (float)(rand() % 100) / 10000.f };
+                displacements[i] = { displace(offset) , displace(offset) , displace(offset) };
+                transforms[i] = { (rand() % 20) / 100.0f + 0.05f , (float)(rand() % 360) };
+            }
+
+            speeds[i].x += speeds[i].y;
+
             mat4 model = Mat4::Identity();
             // position
-            float angle = (float)i / (float)INSTANCE * 360.f;
-            float displacement = displace(offset);
-            float x = sin(angle) * radius + displacement;
-            displacement = displace(offset);
-            float y = displacement * 0.4f;
-            displacement = displace(offset);
-            float z = cos(angle) * radius + displacement;
+            float angle = (float)i / (float)INSTANCE * 360.f + speeds[i].x;
+            float x = sin(angle) * radius + displacements[i].x;
+            float y = displacements[i].y * 0.4f;
+            float z = cos(angle) * radius + displacements[i].z;
             model = Mat4::Translate(v3{ x, y, z });
 
             // scale
-            float scale = (rand() % 20) / 100.0f + 0.05f;
+            float scale = transforms[i].x;
             model = model * Mat4::Scale(v3{ scale, scale, scale });
 
             //rotation
-            float rotation = rand() % 360;
+            float rotation = transforms[i].y;
             model = model * Mat4::RotateX(rotation);
 
             modelMatrices[i] = model;
@@ -309,10 +330,11 @@ void demo_instancing::GenMatrices()
 
     // Generate VBO
     {
+        glBindVertexArray(asteroid.VAO);
+
         GLuint instanceVBO = 0;
         glGenBuffers(1, &instanceVBO);
         glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-        glBindVertexArray(asteroid.VAO);
 
         glBufferData(GL_ARRAY_BUFFER, InstanceCount * sizeof(mat4), &modelMatrices.data()[0], GL_STATIC_DRAW);
 
@@ -351,6 +373,8 @@ void demo_instancing::RenderScene(const mat4& ProjectionMatrix, const mat4& View
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
+
+    GenMatrices();
 
     RenderAsteroids();
 }

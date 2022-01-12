@@ -48,7 +48,7 @@ public:
 
     GLuint LightsUniformBuffer;
     int LightCount = 8;
-    int InstanceCount = 250000;
+    int InstanceCount = 500;
 
 private:
     
