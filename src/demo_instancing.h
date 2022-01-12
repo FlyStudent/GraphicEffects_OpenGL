@@ -10,7 +10,7 @@
 
 #include "tavern_scene.h"
 
-#define INSTANCE 1000
+#define INSTANCE 100
 #define ASTEROID_FIELD
 
 class asteroid_mesh
@@ -18,10 +18,11 @@ class asteroid_mesh
 public:
     asteroid_mesh(GL::cache& GLCache);
 
-    void Draw(float VAO);
+    void Draw();
 
     // Mesh
     GLuint MeshBuffer = 0;
+    GLuint MeshVerticesArray = 0;
     int MeshVertexCount = 0;
     vertex_descriptor MeshDesc;
     // Textures
@@ -65,7 +66,6 @@ private:
     GLuint Texture = 0;
 
     asteroid_mesh asteroid;
-    GLuint asteroidVAO = 0;
 
     bool Wireframe = false;
 };

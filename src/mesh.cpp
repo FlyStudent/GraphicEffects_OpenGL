@@ -271,8 +271,9 @@ bool Mesh::LoadObjNoConvertion(std::vector<vertex_full>& Mesh, const char* Filen
         std::string Err;
         tinyobj::attrib_t Attrib;
         std::vector<tinyobj::shape_t> Shapes;
+        std::vector<tinyobj::material_t> Mats;
 
-        tinyobj::LoadObj(&Attrib, &Shapes, nullptr, &Warn, &Err, Filename, "media/", true);
+        tinyobj::LoadObj(&Attrib, &Shapes, &Mats, &Warn, &Err, Filename, "media/", true);
         if (!Err.empty())
         {
             fprintf(stderr, "Warning loading obj: %s\n", Err.c_str());
