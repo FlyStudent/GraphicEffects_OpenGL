@@ -23,6 +23,7 @@
 #include "demo_minimal.h"
 #include "demo_base.h"
 #include "demo_bloom.h"
+#include "demo_framebuffer.h"
 #include "demo_normalmapping.h"
 #include "demo_pg_skybox.h"
 #include "demo_pg_billboard.h"
@@ -246,6 +247,7 @@ int main(int argc, char* argv[])
         int DemoId = 0; // Change this to start with another demo
         std::unique_ptr<demo> Demos[] = 
         {
+            std::make_unique<demo_framebuffer>(GLCache, GLDebug, App.IO),
             std::make_unique<demo_normalmapping>(GLCache, GLDebug),
             std::make_unique<demo_hdr>(GLCache, GLDebug, App.IO),
             std::make_unique<demo_base>(GLCache, GLDebug),
