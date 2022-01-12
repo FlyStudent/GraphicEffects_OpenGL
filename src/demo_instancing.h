@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include "demo.h"
 
@@ -10,19 +11,18 @@
 
 #include "tavern_scene.h"
 
-#define INSTANCE 100
-#define ASTEROID_FIELD
+#define INSTANCE 10000
 
 class asteroid_mesh
 {
 public:
     asteroid_mesh(GL::cache& GLCache);
 
-    void Draw();
+    void Draw(int instance);
 
     // Mesh
-    GLuint MeshBuffer = 0;
-    GLuint MeshVerticesArray = 0;
+    GLuint VBO = 0;
+    GLuint VAO = 0;
     int MeshVertexCount = 0;
     vertex_descriptor MeshDesc;
     // Textures
@@ -48,14 +48,14 @@ public:
 
     GLuint LightsUniformBuffer;
     int LightCount = 8;
+    int InstanceCount = 250000;
 
 private:
+    
+    void GenMatrices();
+    
     GL::debug& GLDebug;
     std::vector<GL::light> Lights;
-
-#ifdef ASTEROID_FIELD
-    mat4 modelMatrices[INSTANCE];
-#endif
 
     // 3d camera
     camera Camera = {};

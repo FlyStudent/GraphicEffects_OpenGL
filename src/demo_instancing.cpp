@@ -99,7 +99,7 @@ asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
     // Create mesh
     {
         // Use vbo from GLCache
-        MeshBuffer = GLCache.LoadObj("media/rock.obj", 1.f, &MeshVertexCount);
+        VBO = GLCache.LoadObj("media/rock.obj", 1.f, &MeshVertexCount);
 
         MeshDesc.Stride = sizeof(vertex_full);
         MeshDesc.HasNormal = true;
@@ -108,10 +108,10 @@ asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
         MeshDesc.UVOffset = OFFSETOF(vertex_full, UV);
         MeshDesc.NormalOffset = OFFSETOF(vertex_full, Normal);
 
-        glGenVertexArrays(1, &MeshVerticesArray);
+        glGenVertexArrays(1, &VAO);
 
-        glBindVertexArray(MeshVerticesArray);
-        glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer);
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.PositionOffset);
@@ -127,12 +127,12 @@ asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
     }
 }
 
-void asteroid_mesh::Draw()
+void asteroid_mesh::Draw(int instance)
 {
     glBindTexture(GL_TEXTURE_2D, DiffuseTexture);
     // Draw mesh
-    glBindVertexArray(MeshVerticesArray);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, MeshVertexCount, INSTANCE);
+    glBindVertexArray(VAO);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, MeshVertexCount, instance);
     //glDrawElementsInstanced(GL_TRIANGLES, MeshVertexCount, GL_UNSIGNED_INT, 0, INSTANCE);
 }
 
@@ -215,101 +215,7 @@ demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
         glBufferData(GL_UNIFORM_BUFFER, LightCount * sizeof(GL::light), Lights.data(), GL_DYNAMIC_DRAW);
     }
 
-#ifndef ASTEROID_FIELD
-    v3 translations[INSTANCE];
-    // Instancying quads
-    {
-        int index = 0;
-        float offset = 2.f;
-        for (float z = -50.f; z < 50.f; z += 10.f)
-            for (float y = -50.f; y < 50.f; y += 10.f)
-                for (float x = -50.f; x < 50.f; x += 10.f)
-                    translations[index++] = { (float)x + offset, (float)y + offset, (float)z + offset };
-
-        glUseProgram(Program);
-        for (unsigned int i = 0; i < INSTANCE; i++)
-            glUniform3f(glGetUniformLocation(Program, ("offsets[" + std::to_string(i) + "]").c_str()), translations[i].x, translations[i].y, translations[i].z);
-    }
-
-    // Generate offset Buffer
-    {
-        GLuint instanceVBO = 0;
-        glGenBuffers(1, &instanceVBO);
-
-        glBindVertexArray(quadVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-        
-        glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * INSTANCE, &translations[0], GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glVertexAttribDivisor(3, 1);
-    }
-#else
-
-    // Instance matrices
-    {
-        srand(ImGui::GetTime());
-        float radius = 150.f;
-        float offset = 25.f;
-
-        auto displace = [](float offset)->float { return (rand() % (int)(2 * offset * 100)) / 100.f - offset;  };
-
-        for (int i = 0; i < INSTANCE; i++)
-        {
-            mat4 model = Mat4::Identity();
-            // position
-            float angle = (float)i / (float)INSTANCE * 360.f;
-            float displacement = displace(offset);
-            float x = sin(angle) * radius + displacement;
-            displacement = displace(offset);
-            float y = displacement * 0.4f;
-            displacement = displace(offset);
-            float z = cos(angle) * radius + displacement;
-            model = Mat4::Translate(v3{ x, y, z });
-
-            // scale
-            float scale = (rand() % 20) / 100.0f + 0.05f;
-            model = model * Mat4::Scale(v3{ scale, scale, scale });
-
-            //rotation
-            float rotation = rand() % 360;
-            model = model * Mat4::RotateX(rotation);
-
-            modelMatrices[i] = model;
-        }
-    }
-
-    // Generate VBO
-    {
-        GLuint instanceVBO = 0;
-        glGenBuffers(1, &instanceVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-        glBindVertexArray(asteroid.MeshVerticesArray);
-
-        glBufferData(GL_ARRAY_BUFFER, INSTANCE * sizeof(mat4), &modelMatrices[0], GL_STATIC_DRAW);
-
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)0);
-        glVertexAttribDivisor(3, 1);
-
-        glEnableVertexAttribArray(4);
-        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(v4)));
-        glVertexAttribDivisor(4, 1);
-
-        glEnableVertexAttribArray(5);
-        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(2 * sizeof(v4)));
-        glVertexAttribDivisor(5, 1);
-
-        glEnableVertexAttribArray(6);
-        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(3 * sizeof(v4)));
-        glVertexAttribDivisor(6, 1);
-
-        glBindVertexArray(0);
-    }
-#endif
+    GenMatrices();
 }
 
 demo_instancing::~demo_instancing()
@@ -355,9 +261,78 @@ void demo_instancing::DisplayDebugUI()
             ImGui::Text("Yaw: %.2f", Math::ToDegrees(Camera.Yaw));
             ImGui::TreePop();
         }
+        if (ImGui::DragInt("Instance count", &InstanceCount))
+            GenMatrices();
+
         InspectLights();
 
         ImGui::TreePop();
+    }
+}
+
+void demo_instancing::GenMatrices()
+{
+    std::vector<mat4> modelMatrices;
+    modelMatrices.resize(InstanceCount);
+    // Instance matrices
+    {
+        srand(ImGui::GetTime());
+        float radius = 50.f;
+        float offset = 25.f;
+
+        auto displace = [](float offset)->float { return (rand() % (int)(offset * 100.f)) / 100.f - offset;  };
+
+        for (int i = 0; i < InstanceCount; i++)
+        {
+            mat4 model = Mat4::Identity();
+            // position
+            float angle = (float)i / (float)INSTANCE * 360.f;
+            float displacement = displace(offset);
+            float x = sin(angle) * radius + displacement;
+            displacement = displace(offset);
+            float y = displacement * 0.4f;
+            displacement = displace(offset);
+            float z = cos(angle) * radius + displacement;
+            model = Mat4::Translate(v3{ x, y, z });
+
+            // scale
+            float scale = (rand() % 20) / 100.0f + 0.05f;
+            model = model * Mat4::Scale(v3{ scale, scale, scale });
+
+            //rotation
+            float rotation = rand() % 360;
+            model = model * Mat4::RotateX(rotation);
+
+            modelMatrices[i] = model;
+        }
+    }
+
+    // Generate VBO
+    {
+        GLuint instanceVBO = 0;
+        glGenBuffers(1, &instanceVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+        glBindVertexArray(asteroid.VAO);
+
+        glBufferData(GL_ARRAY_BUFFER, InstanceCount * sizeof(mat4), &modelMatrices.data()[0], GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)0);
+        glVertexAttribDivisor(3, 1);
+
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(v4)));
+        glVertexAttribDivisor(4, 1);
+
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(2 * sizeof(v4)));
+        glVertexAttribDivisor(5, 1);
+
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(3 * sizeof(v4)));
+        glVertexAttribDivisor(6, 1);
+
+        glBindVertexArray(0);
     }
 }
 
@@ -377,13 +352,7 @@ void demo_instancing::RenderScene(const mat4& ProjectionMatrix, const mat4& View
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
 
-#ifdef ASTEROID_FIELD
     RenderAsteroids();
-#else
-    glBindTexture(GL_TEXTURE_2D, Texture);
-    // Draw mesh
-    RenderQuad();
-#endif
 }
 
 void demo_instancing::RenderQuad()
@@ -396,7 +365,7 @@ void demo_instancing::RenderQuad()
 void demo_instancing::RenderAsteroids()
 {
     glUseProgram(Program);
-    asteroid.Draw();
+    asteroid.Draw(InstanceCount);
 }
 
 
