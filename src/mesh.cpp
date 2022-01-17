@@ -385,7 +385,9 @@ bool Mesh::LoadObjNoConvertion(std::vector<vertex_full>& Mesh, const char* Filen
 
                 float f = 1.f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
 
-                V0.Tangent = V1.Tangent = V2.Tangent = v3{};
+                v3 tangent = f * (deltaUV2.y * deltaPos1 - deltaUV1.y * deltaPos2);
+
+                V0.Tangent = V1.Tangent = V2.Tangent = tangent;
             }
         }
 

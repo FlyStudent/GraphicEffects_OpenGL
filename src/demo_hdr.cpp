@@ -389,7 +389,7 @@ void demo_hdr::Update(const platform_io& IO)
 #pragma region Blur Process
     bool horizontal = true, first_iteration = true;
     glUseProgram(blurProgram);
-    for (unsigned int i = 0; i < pingpongAmount; i++)
+    for (int i = 0; i < pingpongAmount; i++)
     {
         glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
         glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);

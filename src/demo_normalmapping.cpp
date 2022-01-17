@@ -63,6 +63,7 @@ in mat3 TBN;
 // Uniforms
 uniform mat4 uProjection;
 uniform vec3 uViewPosition;
+uniform bool uProcessNormalMap;
 
 
 uniform sampler2D uDiffuseTexture;
@@ -94,9 +95,13 @@ light_shade_result get_lights_shading()
 
 void main()
 {
-    normal = texture(uNormalTexture, vUV).rgb;
-    normal = normalize(normal * 2.0 - 1.0);
-    normal = normalize(TBN * normal);
+    normal = vNormal;
+    if (uProcessNormalMap)
+    {
+        normal = texture(uNormalTexture, vUV).rgb;
+        normal = normalize(normalize(normal) * 2.0 - 1.0);
+        normal = normalize(TBN * normal);
+    }
 
     // Compute phong shading
     light_shade_result lightResult = get_lights_shading();
@@ -111,9 +116,25 @@ void main()
 })GLSL";
 #pragma endregion
 
+bag_object::bag_object(GL::cache& GLCache)
+{
+    // Create mesh
+    {
+        // Use vbo from GLCache
+        MeshBuffer = GLCache.LoadObj("media/bag/bag.obj", 1.f, &this->MeshVertexCount, &MeshDesc);
+    }
+
+    // Gen texture
+    {
+        DiffuseTexture = GLCache.LoadTexture("media/bag/bag_diffuse.jpg", IMG_FLIP | IMG_GEN_MIPMAPS);
+        //SDiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
+        NormalTexture = GLCache.LoadTexture("media/bag/bag_normal.png", IMG_FLIP | IMG_GEN_MIPMAPS);
+    }
+}
+
 
 demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
-    : GLDebug(GLDebug)
+    : GLDebug(GLDebug), BagObject(GLCache)
 {
     Lights.resize(LightCount);
 
@@ -130,12 +151,29 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
         this->Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
     }
 
+    // Create bag object
+    {
+        glGenVertexArrays(1, &BagObject.MeshArrayObject);
+        glBindVertexArray(BagObject.MeshArrayObject);
+
+        glBindBuffer(GL_ARRAY_BUFFER, BagObject.MeshBuffer);
+
+        vertex_descriptor& Desc = BagObject.MeshDesc;
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.PositionOffset);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.UVOffset);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.NormalOffset);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.TangentOffset);
+    }
 
     // (Default light, standard values)
     {
         GL::light DefaultLight = {};
         DefaultLight.Enabled = true;
-        DefaultLight.Position = { -0.5f, 0.0f, -0.5f, 4.f };
+        DefaultLight.Position = { -0.0f, 0.0f, -1.5f, 1.f };
         DefaultLight.Ambient = { 0.2f, 0.2f, 0.2f };
         DefaultLight.Diffuse = { 1.0f, 1.0f, 1.0f };
         DefaultLight.Specular = { 0.0f, 0.0f, 0.0f };
@@ -144,7 +182,6 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
         // Sun light
         this->Lights[0] = DefaultLight;
     }
-
 
     Texture = GLCache.LoadTexture("media/brick.png", IMG_FLIP | IMG_GEN_MIPMAPS);
     NormalTexture = GLCache.LoadTexture("media/bricknormal.png", IMG_FLIP | IMG_GEN_MIPMAPS);
@@ -257,7 +294,11 @@ void demo_normalmapping::Update(const platform_io& IO)
 
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
     mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
-    mat4 ModelMatrix = Mat4::Translate(Position) * Mat4::RotateX(Math::ToRadians(Rotation.x)) * Mat4::RotateY(Math::ToRadians(Rotation.y)) * Mat4::RotateZ(Math::ToRadians(Rotation.z));
+
+    // TRS
+    mat4 ModelMatrix = Mat4::Translate(Position);
+    ModelMatrix = ModelMatrix * Mat4::RotateX(Math::ToRadians(Rotation.x)) * Mat4::RotateY(Math::ToRadians(Rotation.y)) * Mat4::RotateZ(Math::ToRadians(Rotation.z));
+    ModelMatrix = ModelMatrix * Mat4::Scale(v3{ Scale, Scale, Scale });
 
     // Render tavern
     this->RenderScene(ProjectionMatrix, ViewMatrix, ModelMatrix);
@@ -282,9 +323,12 @@ void demo_normalmapping::DisplayDebugUI()
         if (ImGui::TreeNodeEx("Objet"))
         {
             ImGui::DragFloat3("Position: ", &Position.x);
+            ImGui::DragFloat("Scale: ", &Scale, 0.01f, 0.01f, 100.f);
             ImGui::DragFloat3("Rotation: ", &Rotation.x);
             ImGui::TreePop();
         }
+
+        ImGui::Checkbox("Normal mapping", &NormalMapping);
 
         InspectLights();
 
@@ -298,6 +342,7 @@ void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& V
     glUseProgram(Program);
 
     // Set uniforms
+
     mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
     glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
     glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, ModelMatrix.e);
@@ -305,22 +350,47 @@ void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& V
     glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
     glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
 
-    // Bind uniform buffer and textures
+    glUniform1i(glGetUniformLocation(Program, "uProcessNormalMap"), (GLint)NormalMapping);
+
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
+
+    // Draw mesh
+    //RenderQuad();
+    RenderBag();
+
+}
+
+void demo_normalmapping::RenderQuad()
+{
+    // Bind uniform buffer and textures
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Texture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, NormalTexture);
     glActiveTexture(GL_TEXTURE0);
 
-    // Draw mesh
-    RenderQuad();
-}
-
-void demo_normalmapping::RenderQuad()
-{
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+}
+
+void demo_normalmapping::RenderBag()
+{
+    glEnable(GL_DEPTH_TEST);
+
+    // Use shader and configure its uniforms
+    glUseProgram(Program);
+
+    // Bind uniform buffer and textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, BagObject.DiffuseTexture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, BagObject.NormalTexture);
+    glActiveTexture(GL_TEXTURE0); // Reset active texture just in case
+
+    // Draw mesh
+    glBindVertexArray(BagObject.MeshArrayObject);
+    glDrawArrays(GL_TRIANGLES, 0, BagObject.MeshVertexCount);
     glBindVertexArray(0);
 }
 

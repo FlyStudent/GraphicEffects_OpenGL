@@ -10,6 +10,22 @@
 
 #include "tavern_scene.h"
 
+class bag_object
+{
+public:
+    bag_object(GL::cache& GLCache);
+
+    // Mesh
+    GLuint MeshBuffer = 0;
+    GLuint MeshArrayObject = 0;
+    int MeshVertexCount = 0;
+    vertex_descriptor MeshDesc;
+
+    // Textures
+    GLuint DiffuseTexture = 0;
+    GLuint NormalTexture = 0;
+};
+
 class demo_normalmapping : public demo
 {
 public:
@@ -21,6 +37,7 @@ public:
     void DisplayDebugUI();
     void InspectLights();
     void RenderQuad();
+    void RenderBag();
 
 
     GLuint LightsUniformBuffer;
@@ -36,12 +53,17 @@ private:
 
     // GL objects needed by this demo
     GLuint Program = 0;
+
+    bag_object BagObject;
+
     GLuint quadVAO = 0;
     GLuint Texture = 0;
     GLuint NormalTexture = 0;
 
-    v3 Position = { 0, 0, 1.f };
+    v3 Position = { 0, 0, -2.f };
     v3 Rotation = { 0, 0, 0 };
+    float Scale = 0.01f;
 
     bool Wireframe = false;
+    bool NormalMapping = false;
 };
