@@ -211,9 +211,6 @@ void main()
 demo_hdr::demo_hdr(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO)
     : GLDebug(GLDebug), TavernScene(GLCache)
 {
-    if (processGamma)
-        glEnable(GL_FRAMEBUFFER_SRGB);
-
     // Create shader
     {
         // Assemble fragment shader strings (defines + code)
@@ -362,14 +359,15 @@ demo_hdr::~demo_hdr()
 
 void demo_hdr::Update(const platform_io& IO)
 {
-
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
     
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
 
-
 #pragma region Draw scene in FBO
+    if (processGamma)
+        glEnable(GL_FRAMEBUFFER_SRGB);
+
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
     // Clear screen
@@ -384,6 +382,8 @@ void demo_hdr::Update(const platform_io& IO)
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
+    if (processGamma)
+        glDisable(GL_FRAMEBUFFER_SRGB);
 #pragma endregion
 
 #pragma region Blur Process
@@ -412,6 +412,7 @@ void demo_hdr::Update(const platform_io& IO)
 #pragma endregion
 
 #pragma region Draw post-process HDR
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -447,8 +448,7 @@ void demo_hdr::DisplayDebugUI()
     {
         // Debug display
         ImGui::Checkbox("HDR", &processHdr);
-        if (ImGui::Checkbox("Gamma", &processGamma));
-            processGamma ? glEnable(GL_FRAMEBUFFER_SRGB) : glDisable(GL_FRAMEBUFFER_SRGB);
+        ImGui::Checkbox("Gamma", &processGamma);
 
         ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
         ImGui::SliderFloat("Brightness clamp", &brightnessClamp, 0.f, 1.f);

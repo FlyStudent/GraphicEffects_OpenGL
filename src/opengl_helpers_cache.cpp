@@ -1,10 +1,20 @@
 
+#include "platform.h"
+
 #include "opengl_helpers.h"
 
 #include "opengl_helpers_cache.h"
 
 GL::cache::cache()
 {
+	MeshDesc.Stride = sizeof(vertex_full);
+	MeshDesc.HasNormal = true;
+	MeshDesc.HasUV = true;
+	MeshDesc.HasTangent = true;
+	MeshDesc.PositionOffset = OFFSETOF(vertex_full, Position);
+	MeshDesc.UVOffset = OFFSETOF(vertex_full, UV);
+	MeshDesc.NormalOffset = OFFSETOF(vertex_full, Normal);
+	MeshDesc.TangentOffset = OFFSETOF(vertex_full, Tangent);
 }
 
 GL::cache::~cache()
@@ -16,13 +26,15 @@ GL::cache::~cache()
 		glDeleteBuffers(1, &KeyValue.second.VertexBuffer);
 }
 
-GLuint GL::cache::LoadObj(const char* Filename, float Scale, int* VertexCountOut)
+GLuint GL::cache::LoadObj(const char* Filename, float Scale, int* VertexCountOut, vertex_descriptor* DescOut)
 {
 	auto Found = this->VertexBufferMap.find(Filename);
 	if (Found != this->VertexBufferMap.end())
 	{
 		if (VertexCountOut)
 			*VertexCountOut = Found->second.Size;
+		if (DescOut)
+			*DescOut = MeshDesc;
 		return Found->second.VertexBuffer;
 	}
 
@@ -37,6 +49,9 @@ GLuint GL::cache::LoadObj(const char* Filename, float Scale, int* VertexCountOut
 
 	if (VertexCountOut)
 		*VertexCountOut = (int)this->TmpBuffer.size();
+
+	if (DescOut)
+		*DescOut = MeshDesc;
 	
 	this->VertexBufferMap[Filename] = { MeshBuffer, (int)this->TmpBuffer.size() };
 

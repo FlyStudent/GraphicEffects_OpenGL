@@ -35,6 +35,12 @@ static void* ConvertVertices(void* VerticesDst, const vertex_descriptor& Descrip
             v2* UVDst = (v2*)(VertexStart + Descriptor.UVOffset);
             *UVDst = VertexSrc.UV;
         }
+
+        if (Descriptor.HasTangent)
+        {
+            v3* TangetDst = (v3*)(VertexStart + Descriptor.TangentOffset);
+            *TangetDst = VertexSrc.Tangent;
+        }
     }
 
     return Buffer + Descriptor.Stride * Count;
@@ -379,7 +385,7 @@ bool Mesh::LoadObjNoConvertion(std::vector<vertex_full>& Mesh, const char* Filen
 
                 float f = 1.f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
 
-                V0.tangent = V1.tangent = V2.tangent = v3{};
+                V0.Tangent = V1.Tangent = V2.Tangent = v3{};
             }
         }
 
