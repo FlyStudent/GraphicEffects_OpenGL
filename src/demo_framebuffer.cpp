@@ -111,6 +111,42 @@ in vec2 texCoords;
 uniform sampler2D screenTexture;
 uniform int uPPT;
 
+const float offset_x = 1.0f / 800.0f;
+const float offset_y = 1.0f / 800.0f;
+
+vec2 offsets[9] = vec2[](
+        vec2(-offset_x,  offset_y), // top-left
+        vec2( 0.0f,    offset_y), // top-center
+        vec2( offset_x,  offset_y), // top-right
+        vec2(-offset_x,  0.0f),   // center-left
+        vec2( 0.0f,    0.0f),   // center-center
+        vec2( offset_x,  0.0f),   // center-right
+        vec2(-offset_x, -offset_y), // bottom-left
+        vec2( 0.0f,   -offset_y), // bottom-center
+        vec2( offset_x, -offset_y)  // bottom-right    
+    );
+
+float kernel1[9] = float[](
+    1.0 / 9, 1.0 / 9, 1.0 / 9,
+    1.0 / 9, 1.0 / 9, 1.0 / 9,
+    1.0 / 9, 1.0 / 9, 1.0 / 9
+    );
+float kernel2[9] = float[](
+        2,  2,  2,
+        2, -15,  2,
+        2,  2,  2
+    );
+float kernel3[9] = float[](
+        2,  2,  2,
+        2, -16,  2,
+        2,  2,  2
+    );
+float kernel4[9] = float[](
+        -2, -1,  0,
+        -1,  1,  1,
+         0,  1,  2
+    );
+
 void main()
 {
     if (uPPT == 1)
@@ -120,8 +156,36 @@ void main()
     else if (uPPT == 3)
     {
         FragColor = texture(screenTexture, texCoords);                                      //Grayscale
-        float average = 0.2126 * FragColor.r + 0.7152 * FragColor.g + 0.0722 * FragColor.b; 
-        FragColor = vec4(average, average, average, 1.0);
+        float average = (FragColor.r + FragColor.g + FragColor.b) / 3.0f; 
+        FragColor = vec4(average, average, average, 1.0f);
+    }
+    else if(uPPT == 4)
+    {
+        vec3 color = vec3(0.0f);
+        for(int i = 0; i < 9; i++)
+            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel1[i];
+        FragColor = vec4(color, 1.0f);
+    }
+    else if(uPPT == 5)
+    {
+        vec3 color = vec3(0.0f);
+        for(int i = 0; i < 9; i++)
+            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel2[i];
+        FragColor = vec4(color, 1.0f);
+    }
+    else if(uPPT == 6)
+    {
+        vec3 color = vec3(0.0f);
+        for(int i = 0; i < 9; i++)
+            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel3[i];
+        FragColor = vec4(color, 1.0f);
+    }
+    else if(uPPT == 7)
+    {
+        vec3 color = vec3(0.0f);
+        for(int i = 0; i < 9; i++)
+            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel4[i];
+        FragColor = vec4(color, 1.0f);
     }
 }
 )GLSL";
@@ -285,7 +349,7 @@ void demo_framebuffer::DisplayDebugUI()
             ImGui::TreePop();
         }
 
-        const char* items[] = { "Normal", "Inversion", "Greyscale"};
+        const char* items[] = { "Normal", "Inversion", "Greyscale", "Kernel effects 1", "Kernel effects 2" , "Kernel effects 3" , "Kernel effects 4" };
         static int current = 2;
         if (ImGui::ListBox("Post Process Type", &current, items, IM_ARRAYSIZE(items), IM_ARRAYSIZE(items)))
         {
@@ -296,6 +360,18 @@ void demo_framebuffer::DisplayDebugUI()
                 break;
             case 2:
                 ppt = PostProcessType::GREYSCALE;
+                break;
+            case 3:
+                ppt = PostProcessType::KERNEL1;
+                break;
+            case 4:
+                ppt = PostProcessType::KERNEL2;
+                break;
+            case 5:
+                ppt = PostProcessType::KERNEL3;
+                break;
+            case 6:
+                ppt = PostProcessType::KERNEL4;
                 break;
             default:
                 ppt = PostProcessType::NORMAL;

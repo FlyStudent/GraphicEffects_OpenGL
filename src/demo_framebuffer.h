@@ -14,7 +14,11 @@ enum PostProcessType
 {
     NORMAL,
     INVERSION,
-    GREYSCALE
+    GREYSCALE,
+    KERNEL1,
+    KERNEL2,
+    KERNEL3,
+    KERNEL4
 };
 
 class demo_framebuffer : public demo
