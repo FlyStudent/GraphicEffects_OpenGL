@@ -363,6 +363,26 @@ bool Mesh::LoadObjNoConvertion(std::vector<vertex_full>& Mesh, const char* Filen
             }
         }
 
+        // Compute tangents coordinate
+        {
+            for (int i = 0; i < (int)Mesh.size(); i += 3)
+            {
+                vertex_full& V0 = Mesh[i + 0];
+                vertex_full& V1 = Mesh[i + 1];
+                vertex_full& V2 = Mesh[i + 2];
+
+                v3 deltaPos1 = V1.Position - V0.Position;
+                v3 deltaPos2 = V2.Position - V0.Position;
+
+                v2 deltaUV1 = V1.UV - V0.UV;
+                v2 deltaUV2 = V2.UV - V0.UV;
+
+                float f = 1.f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+
+                V0.tangent = V1.tangent = V2.tangent = v3{};
+            }
+        }
+
         SaveObjToCache(Mesh, Filename);
     }
 

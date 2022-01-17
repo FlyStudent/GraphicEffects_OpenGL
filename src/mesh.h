@@ -13,6 +13,7 @@ struct vertex_descriptor
 	int NormalOffset;
 	bool HasUV;
 	int UVOffset;
+	int tangentOffset;
 };
 
 struct vertex_full
@@ -20,6 +21,7 @@ struct vertex_full
 	v3 Position;
 	v3 Normal;
 	v2 UV;
+	v3 tangent;
 };
 
 namespace Mesh
