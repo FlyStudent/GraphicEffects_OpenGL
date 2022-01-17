@@ -12,6 +12,8 @@
 
 using namespace Mesh;
 
+inline bool operator==(const v3& A, const  v3& B) { return A.x == B.x && A.y == B.y && A.z == B.z; }
+
 static void* ConvertVertices(void* VerticesDst, const vertex_descriptor& Descriptor, vertex_full* VerticesSrc, int Count)
 {
     uint8_t* Buffer = (uint8_t*)VerticesDst;
@@ -373,12 +375,14 @@ bool Mesh::LoadObjNoConvertion(std::vector<vertex_full>& Mesh, const char* Filen
         {
             for (int i = 0; i < (int)Mesh.size(); i += 3)
             {
+
                 vertex_full& V0 = Mesh[i + 0];
                 vertex_full& V1 = Mesh[i + 1];
                 vertex_full& V2 = Mesh[i + 2];
 
                 v3 deltaPos1 = V1.Position - V0.Position;
                 v3 deltaPos2 = V2.Position - V0.Position;
+
 
                 v2 deltaUV1 = V1.UV - V0.UV;
                 v2 deltaUV2 = V2.UV - V0.UV;
@@ -387,7 +391,10 @@ bool Mesh::LoadObjNoConvertion(std::vector<vertex_full>& Mesh, const char* Filen
 
                 v3 tangent = f * (deltaUV2.y * deltaPos1 - deltaUV1.y * deltaPos2);
 
-                V0.Tangent = V1.Tangent = V2.Tangent = tangent;
+                // Assert if tangent already set, in this case average tangent
+                V0.Tangent = V0.Tangent == v3{ 0.f, 0.f , 0.f } ? tangent : (V0.Tangent + tangent) / 2.f;
+                V1.Tangent = V1.Tangent == v3{ 0.f, 0.f , 0.f } ? tangent : (V1.Tangent + tangent) / 2.f;
+                V2.Tangent = V2.Tangent == v3{ 0.f, 0.f , 0.f } ? tangent : (V2.Tangent + tangent) / 2.f;
             }
         }
 

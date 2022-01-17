@@ -99,7 +99,7 @@ void main()
     if (uProcessNormalMap)
     {
         normal = texture(uNormalTexture, vUV).rgb;
-        normal = normalize(normalize(normal) * 2.0 - 1.0);
+        normal = normalize(normal * 2.0 - 1.0);
         normal = normalize(TBN * normal);
     }
 
@@ -171,16 +171,21 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
 
     // (Default light, standard values)
     {
-        GL::light DefaultLight = {};
-        DefaultLight.Enabled = true;
-        DefaultLight.Position = { -0.0f, 0.0f, -1.5f, 1.f };
-        DefaultLight.Ambient = { 0.2f, 0.2f, 0.2f };
-        DefaultLight.Diffuse = { 1.0f, 1.0f, 1.0f };
-        DefaultLight.Specular = { 0.0f, 0.0f, 0.0f };
-        DefaultLight.Attenuation = { 1.0f, 0.0f, 0.0f };
+        GL::light firstLight = {};
+        firstLight.Enabled = true;
+        firstLight.Position = { -3.0f, 0.0f, -1.5f, 1.f };
+        firstLight.Ambient = { 0.2f, 0.2f, 0.2f };
+        firstLight.Diffuse = { 1.0f, 1.0f, 1.0f };
+        firstLight.Specular = { 0.0f, 0.0f, 0.0f };
+        firstLight.Attenuation = { 1.0f, 0.0f, 0.0f };
 
         // Sun light
-        this->Lights[0] = DefaultLight;
+        this->Lights[0] = firstLight;
+
+        GL::light secondLight = firstLight;
+        secondLight.Position = { 3.0f, 0.0f, -0.f, 1.f };
+        
+        this->Lights[1] = firstLight;
     }
 
     Texture = GLCache.LoadTexture("media/brick.png", IMG_FLIP | IMG_GEN_MIPMAPS);
@@ -301,7 +306,22 @@ void demo_normalmapping::Update(const platform_io& IO)
     ModelMatrix = ModelMatrix * Mat4::Scale(v3{ Scale, Scale, Scale });
 
     // Render tavern
-    this->RenderScene(ProjectionMatrix, ViewMatrix, ModelMatrix);
+    glEnable(GL_DEPTH_TEST);
+    glUseProgram(Program);
+    glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
+    glUniform1i(glGetUniformLocation(Program, "uProcessNormalMap"), (GLint)NormalMapping);
+
+    glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
+
+    this->RenderQuad(ProjectionMatrix, ViewMatrix, ModelMatrix);
+
+    // TRS
+    ModelMatrix = Mat4::Translate(BagObject.Position);
+    ModelMatrix = ModelMatrix * Mat4::RotateX(Math::ToRadians(BagObject.Rotation.x)) * Mat4::RotateY(Math::ToRadians(BagObject.Rotation.y)) * Mat4::RotateZ(Math::ToRadians(BagObject.Rotation.z));
+    ModelMatrix = ModelMatrix * Mat4::Scale(v3{ BagObject.Scale, BagObject.Scale, BagObject.Scale });
+
+    // Render tavern
+    this->RenderBag(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
     // Display debug UI
     this->DisplayDebugUI();
@@ -322,9 +342,18 @@ void demo_normalmapping::DisplayDebugUI()
         }
         if (ImGui::TreeNodeEx("Objet"))
         {
-            ImGui::DragFloat3("Position: ", &Position.x);
-            ImGui::DragFloat("Scale: ", &Scale, 0.01f, 0.01f, 100.f);
-            ImGui::DragFloat3("Rotation: ", &Rotation.x);
+            ImGui::Text("Quad");
+            ImGui::DragFloat3("##1 Position: ", &Position.x);
+            ImGui::DragFloat("##1 Scale: ", &Scale, 0.01f, 0.01f, 100.f);
+            ImGui::DragFloat3("##1 Rotation: ", &Rotation.x);
+
+            ImGui::Spacing();
+
+            ImGui::Text("Bag");
+            ImGui::DragFloat3("##2 Position: ", &BagObject.Position.x);
+            ImGui::DragFloat("##2 Scale: ", &BagObject.Scale, 0.01f, 0.01f, 100.f);
+            ImGui::DragFloat3("##2 Rotation: ", &BagObject.Rotation.x);
+
             ImGui::TreePop();
         }
 
@@ -336,32 +365,19 @@ void demo_normalmapping::DisplayDebugUI()
     }
 }
 
-void demo_normalmapping::RenderScene(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
+void demo_normalmapping::RenderQuad(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
 {
     // Use shader and configure its uniforms
     glUseProgram(Program);
 
     // Set uniforms
-
     mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
     glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
     glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, ModelMatrix.e);
     glUniformMatrix4fv(glGetUniformLocation(Program, "uView"), 1, GL_FALSE, ViewMatrix.e);
     glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
-    glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
+    
 
-    glUniform1i(glGetUniformLocation(Program, "uProcessNormalMap"), (GLint)NormalMapping);
-
-    glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, LightsUniformBuffer);
-
-    // Draw mesh
-    //RenderQuad();
-    RenderBag();
-
-}
-
-void demo_normalmapping::RenderQuad()
-{
     // Bind uniform buffer and textures
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Texture);
@@ -374,12 +390,17 @@ void demo_normalmapping::RenderQuad()
     glBindVertexArray(0);
 }
 
-void demo_normalmapping::RenderBag()
+void demo_normalmapping::RenderBag(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
 {
-    glEnable(GL_DEPTH_TEST);
-
     // Use shader and configure its uniforms
     glUseProgram(Program);
+
+    // Set uniforms
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, ModelMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
 
     // Bind uniform buffer and textures
     glActiveTexture(GL_TEXTURE0);

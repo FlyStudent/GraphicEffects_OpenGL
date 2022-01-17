@@ -24,6 +24,11 @@ public:
     // Textures
     GLuint DiffuseTexture = 0;
     GLuint NormalTexture = 0;
+
+    // TRS
+    v3 Position = { 3.f, 0, -5.f };
+    v3 Rotation = { 0, 0, 0 };
+    float Scale = 0.01f;
 };
 
 class demo_normalmapping : public demo
@@ -33,11 +38,10 @@ public:
     virtual ~demo_normalmapping();
     virtual void Update(const platform_io& IO);
 
-    void RenderScene(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void DisplayDebugUI();
     void InspectLights();
-    void RenderQuad();
-    void RenderBag();
+    void RenderQuad(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
+    void RenderBag(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
 
 
     GLuint LightsUniformBuffer;
@@ -60,10 +64,10 @@ private:
     GLuint Texture = 0;
     GLuint NormalTexture = 0;
 
-    v3 Position = { 0, 0, -2.f };
+    v3 Position = { -3.f, 0, -5.f };
     v3 Rotation = { 0, 0, 0 };
-    float Scale = 0.01f;
+    float Scale = 1.f;
 
     bool Wireframe = false;
-    bool NormalMapping = false;
+    bool NormalMapping = true;
 };
