@@ -22,7 +22,6 @@
 
 #include "demo_minimal.h"
 #include "demo_base.h"
-#include "demo_bloom.h"
 #include "demo_framebuffer.h"
 #include "demo_instancing.h"
 #include "demo_normalmapping.h"

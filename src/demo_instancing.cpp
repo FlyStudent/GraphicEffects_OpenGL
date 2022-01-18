@@ -284,7 +284,7 @@ void demo_instancing::GenMatrices()
     // Instance matrices
     {
 
-        srand(ImGui::GetTime());
+        srand((unsigned int)ImGui::GetTime());
         float radius = 50.f;
         float offset = 25.f;
 
