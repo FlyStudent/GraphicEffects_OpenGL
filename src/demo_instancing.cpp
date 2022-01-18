@@ -99,14 +99,7 @@ asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
     // Create mesh
     {
         // Use vbo from GLCache
-        VBO = GLCache.LoadObj("media/rock.obj", 1.f, &MeshVertexCount);
-
-        MeshDesc.Stride = sizeof(vertex_full);
-        MeshDesc.HasNormal = true;
-        MeshDesc.HasUV = true;
-        MeshDesc.PositionOffset = OFFSETOF(vertex_full, Position);
-        MeshDesc.UVOffset = OFFSETOF(vertex_full, UV);
-        MeshDesc.NormalOffset = OFFSETOF(vertex_full, Normal);
+        VBO = GLCache.LoadObj("media/rock.obj", 1.f, &MeshVertexCount, &MeshDesc);
 
         glGenVertexArrays(1, &VAO);
 
