@@ -96,9 +96,6 @@
     <ClCompile Include="src\demo_base.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\demo_bloom.cpp">
-      <Filter>Source Files\demo</Filter>
-    </ClCompile>
     <ClCompile Include="src\demo_normalmapping.cpp">
       <Filter>Source Files\demo</Filter>
     </ClCompile>
@@ -187,9 +184,6 @@
     </ClInclude>
     <ClInclude Include="src\demo_pg_postprocess.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\demo_bloom.h">
-      <Filter>Header Files\demo</Filter>
     </ClInclude>
     <ClInclude Include="src\demo_normalmapping.h">
       <Filter>Source Files\demo</Filter>

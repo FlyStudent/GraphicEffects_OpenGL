@@ -58,7 +58,7 @@ GLuint GL::cache::LoadObj(const char* Filename, float Scale, int* VertexCountOut
 	return MeshBuffer;
 }
 
-GLuint GL::cache::LoadTexture(const char* Filename, int ImageFlags, int* WidthOut, int* HeightOut, bool gamma)
+GLuint GL::cache::LoadTexture(const char* Filename, int ImageFlags, int* WidthOut, int* HeightOut)
 {
 	texture_identifier TextureIdentifier = { Filename, ImageFlags };
 	
@@ -74,10 +74,7 @@ GLuint GL::cache::LoadTexture(const char* Filename, int ImageFlags, int* WidthOu
 	glGenTextures(1, &Texture);
 	glBindTexture(GL_TEXTURE_2D, Texture);
 	int Width, Height;
-	if (gamma)
-		GL::UploadGammaTexture(Filename, ImageFlags, &Width, &Height);
-	else
-		GL::UploadTexture(Filename, ImageFlags, &Width, &Height);
+	GL::UploadTexture(Filename, ImageFlags, &Width, &Height);
 
 	if (WidthOut)  *WidthOut  = Width;
 	if (HeightOut) *HeightOut = Height;
