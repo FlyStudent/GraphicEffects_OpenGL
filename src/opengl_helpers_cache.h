@@ -14,7 +14,7 @@ namespace GL
 	public:
         cache();
         ~cache();
-        GLuint LoadObj(const char* Filename, float Scale, int* VertexCountOut);
+        GLuint LoadObj(const char* Filename, float Scale, int* VertexCountOut, vertex_descriptor* DescOut);
         GLuint LoadTexture(const char* Filename, int ImageFlags = 0, int* WidthOut = nullptr, int* HeightOut = nullptr, bool gamma = false);
 
 	private:
@@ -45,5 +45,6 @@ namespace GL
 		std::vector<vertex_full> TmpBuffer;
 		std::map<std::string, mesh> VertexBufferMap;
 		std::map<texture_identifier, texture> TextureMap;
+		vertex_descriptor MeshDesc;
 	};
 }

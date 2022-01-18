@@ -48,14 +48,7 @@ tavern_scene::tavern_scene(GL::cache& GLCache)
     // Create mesh
     {
         // Use vbo from GLCache
-        MeshBuffer = GLCache.LoadObj("media/fantasy_game_inn.obj", 1.f, &this->MeshVertexCount);
-        
-        MeshDesc.Stride = sizeof(vertex_full);
-        MeshDesc.HasNormal = true;
-        MeshDesc.HasUV = true;
-        MeshDesc.PositionOffset = OFFSETOF(vertex_full, Position);
-        MeshDesc.UVOffset = OFFSETOF(vertex_full, UV);
-        MeshDesc.NormalOffset = OFFSETOF(vertex_full, Normal);
+        MeshBuffer = GLCache.LoadObj("media/fantasy_game_inn.obj", 1.f, &this->MeshVertexCount, &MeshDesc);
     }
 
     // Gen texture

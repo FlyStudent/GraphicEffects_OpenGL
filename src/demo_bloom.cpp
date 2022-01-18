@@ -289,7 +289,7 @@ void demo_bloom::Update(const platform_io& IO)
     bool horizontal = true, first_iteration = true;
     int amount = 8;
     glUseProgram(blurProgram);
-    for (unsigned int i = 0; i < amount; i++)
+    for (int i = 0; i < amount; i++)
     {
         glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
         glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);
