@@ -161,6 +161,7 @@
     <ClCompile Include="src\camera.cpp" />
     <ClCompile Include="src\demo_base.cpp" />
     <ClCompile Include="src\demo_bloom.cpp" />
+    <ClCompile Include="src\demo_framebuffer.cpp" />
     <ClCompile Include="src\demo_hdr.cpp" />
     <ClCompile Include="src\demo_instancing.cpp" />
     <ClCompile Include="src\demo_minimal.cpp" />
@@ -189,6 +190,7 @@
     <ClInclude Include="src\demo.h" />
     <ClInclude Include="src\demo_base.h" />
     <ClInclude Include="src\demo_bloom.h" />
+    <ClInclude Include="src\demo_framebuffer.h" />
     <ClInclude Include="src\demo_hdr.h" />
     <ClInclude Include="src\demo_instancing.h" />
     <ClInclude Include="src\demo_minimal.h" />

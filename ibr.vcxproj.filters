@@ -105,6 +105,9 @@
     <ClCompile Include="src\demo_normalmapping.cpp">
       <Filter>Source Files\demo</Filter>
     </ClCompile>
+    <ClCompile Include="src\demo_framebuffer.cpp">
+      <Filter>Source Files\demo</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera.h">
@@ -199,6 +202,9 @@
     </ClInclude>
     <ClInclude Include="src\demo_normalmapping.h">
       <Filter>Source Files\demo</Filter>
+    </ClInclude>
+    <ClInclude Include="src\demo_framebuffer.h">
+      <Filter>Header Files\demo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
