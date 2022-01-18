@@ -18,7 +18,7 @@ tavern_scene::tavern_scene(GL::cache& GLCache)
         GL::light DefaultLight = {};
         DefaultLight.Enabled     = true;
         DefaultLight.Position    = { 0.0f, 0.0f, 0.0f, 1.f };
-        DefaultLight.Ambient     = { 0.2f, 0.2f, 0.2f };
+        DefaultLight.Ambient     = { 0.f, 0.f, 0.f };
         DefaultLight.Diffuse     = { 1.0f, 1.0f, 1.0f };
         DefaultLight.Specular    = { 0.0f, 0.0f, 0.0f };
         DefaultLight.Attenuation = { 1.0f, 0.0f, 0.0f };
@@ -53,8 +53,10 @@ tavern_scene::tavern_scene(GL::cache& GLCache)
 
     // Gen texture
     {
+        // Gamma demostration
+        LinearDiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse_linear.png", IMG_FLIP | IMG_GEN_MIPMAPS | IMG_LINEAR);
+
         DiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS);
-        //SDiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
         EmissiveTexture = GLCache.LoadTexture("media/fantasy_game_inn_emissive.png", IMG_FLIP | IMG_GEN_MIPMAPS);
     }
     

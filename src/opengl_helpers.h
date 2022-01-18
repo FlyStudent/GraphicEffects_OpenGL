@@ -13,6 +13,7 @@ enum image_flags
     IMG_FORCE_RGB        = 1 << 3,
     IMG_FORCE_RGBA       = 1 << 4,
     IMG_GEN_MIPMAPS      = 1 << 5,
+    IMG_LINEAR           = 1 << 6,
 };
 
 namespace GL
@@ -62,6 +63,5 @@ namespace GL
     GLuint CreateProgramEx(int VSStringsCount, const char** VSStrings, int FSStringCount, const char** FSString, bool InjectLightShading = false);
     const char* GetShaderStructsDefinitions();
     void UploadTexture(const char* Filename, int ImageFlags = 0, int* WidthOut = nullptr, int* HeightOut = nullptr);
-    void UploadGammaTexture(const char* Filename, int ImageFlags = 0, int* WidthOut = nullptr, int* HeightOut = nullptr);
     void UploadCheckerboardTexture(int Width, int Height, int SquareSize);
 }

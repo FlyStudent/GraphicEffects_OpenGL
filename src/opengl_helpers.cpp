@@ -53,7 +53,7 @@ light gDefaultLight = light(
 
 // Default material
 uniform material gDefaultMaterial = material(
-    vec3(0.2, 0.2, 0.2),
+    vec3(1.0, 1.0, 1.0),
     vec3(0.8, 0.8, 0.8),
     vec3(1.0, 1.0, 1.0),
     vec3(0.0, 0.0, 0.0),
@@ -247,7 +247,13 @@ void GL::UploadTexture(const char* Filename, int ImageFlags, int* WidthOut, int*
 
     // Loading
     int Width, Height;
-    uint8_t* Image = stbi_load(Filename, &Width, &Height, (DesiredChannels == 0) ? &Channels : nullptr, DesiredChannels);
+	void* Image;
+	
+	if (ImageFlags & IMG_LINEAR)
+		Image = stbi_loadf(Filename, &Width, &Height, (DesiredChannels == 0) ? &Channels : nullptr, DesiredChannels);
+	else
+		Image = stbi_load(Filename, &Width, &Height, (DesiredChannels == 0) ? &Channels : nullptr, DesiredChannels);
+
     if (Image == nullptr)
     {
         fprintf(stderr, "Image loading failed on '%s'\n", Filename);
@@ -259,11 +265,19 @@ void GL::UploadTexture(const char* Filename, int ImageFlags, int* WidthOut, int*
 		GL_RED,
 		GL_RG,
 		GL_RGB,
-		GL_RGBA
+		GL_RGBA,
+
+		GL_R32F,
+		GL_RG32F,
+		GL_RGB32F,
+		GL_RGBA32F
 	};
 	
     // Uploading
-    glTexImage2D(GL_TEXTURE_2D, 0, GLImageFormat[Channels], Width, Height, 0, GLImageFormat[Channels], GL_UNSIGNED_BYTE, Image);
+	if (ImageFlags & IMG_LINEAR)
+		glTexImage2D(GL_TEXTURE_2D, 0, GLImageFormat[Channels+4], Width, Height, 0, GLImageFormat[Channels], GL_FLOAT, Image);
+	else
+		glTexImage2D(GL_TEXTURE_2D, 0, GLImageFormat[Channels], Width, Height, 0, GLImageFormat[Channels], GL_UNSIGNED_BYTE, Image);
     stbi_image_free(Image);
 
     // Mipmaps
@@ -277,80 +291,6 @@ void GL::UploadTexture(const char* Filename, int ImageFlags, int* WidthOut, int*
         *HeightOut = Height;
 
     stbi_set_flip_vertically_on_load(0); // Always reset to default value
-}
-
-void GL::UploadGammaTexture(const char* Filename, int ImageFlags, int* WidthOut, int* HeightOut)
-{
-	/// Same function as UploadTexture except for GLImageFormat
-
-	// Flip
-	stbi_set_flip_vertically_on_load((ImageFlags & IMG_FLIP) ? 1 : 0);
-
-	// Desired channels
-	int DesiredChannels = 0;
-	int Channels = 0;
-	if (ImageFlags & IMG_FORCE_GREY)
-	{
-		DesiredChannels = STBI_grey;
-		Channels = 1;
-	}
-	if (ImageFlags & IMG_FORCE_GREY_ALPHA)
-	{
-		DesiredChannels = STBI_grey_alpha;
-		Channels = 2;
-	}
-	if (ImageFlags & IMG_FORCE_RGB)
-	{
-		DesiredChannels = STBI_rgb;
-		Channels = 3;
-	}
-	if (ImageFlags & IMG_FORCE_RGBA)
-	{
-		DesiredChannels = STBI_rgb_alpha;
-		Channels = 4;
-	}
-
-	// Loading
-	int Width, Height;
-	uint8_t* Image = stbi_load(Filename, &Width, &Height, (DesiredChannels == 0) ? &Channels : nullptr, DesiredChannels);
-	if (Image == nullptr)
-	{
-		fprintf(stderr, "Image loading failed on '%s'\n", Filename);
-		return;
-	}
-
-	GLint GLInternalFormat[] =
-	{
-		-1, // 0 Channels, unused
-		GL_RED,
-		GL_RG,
-		GL_SRGB,
-		GL_SRGB_ALPHA
-	};
-	GLint GLImageFormat[] =
-	{
-		-1, // 0 Channels, unused
-		GL_RED,
-		GL_RG,
-		GL_RGB,
-		GL_RGBA
-	};
-
-	// Uploading
-	glTexImage2D(GL_TEXTURE_2D, 0, GLInternalFormat[Channels], Width, Height, 0, GLImageFormat[Channels], GL_UNSIGNED_BYTE, Image);
-	stbi_image_free(Image);
-
-	// Mipmaps
-	if (ImageFlags & IMG_GEN_MIPMAPS)
-		glGenerateMipmap(GL_TEXTURE_2D);
-
-	if (WidthOut)
-		*WidthOut = Width;
-
-	if (HeightOut)
-		*HeightOut = Height;
-
-	stbi_set_flip_vertically_on_load(0); // Always reset to default value
 }
 
 void GL::UploadCheckerboardTexture(int Width, int Height, int SquareSize)

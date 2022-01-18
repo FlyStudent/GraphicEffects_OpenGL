@@ -61,7 +61,6 @@ in vec3 vNormal;
 // Uniforms
 uniform mat4 uProjection;
 uniform vec3 uViewPosition;
-uniform bool uGamma;
 uniform float uBrightness;
 
 uniform sampler2D uDiffuseTexture;
@@ -109,13 +108,6 @@ void main()
         BloomoColor = vec4(oColor.rgb, 1.0);
     else
        BloomoColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-
-    // Apply gamma correction
-    if (uGamma)
-    {
-        float gamma = 2.2;
-        oColor.rgb = pow(oColor.rgb, vec3(1.0/gamma));
-    }
 })GLSL";
 #pragma endregion
 
@@ -144,8 +136,10 @@ in vec2 TexCoords;
 uniform sampler2D uScreenTexture;
 uniform sampler2D uBloomTexture;
 
-uniform bool uProcess;
-uniform bool uGamma;
+uniform bool uProcessHdr;
+uniform bool uProcessGamma;
+uniform bool uProcessBloom;
+uniform float uGamma;
 uniform float uExposure;
 
 // shader ouputs
@@ -153,21 +147,20 @@ out vec4 FragColor;
 
 void main()
 {
-	const float gamma = 2.2;
 	vec3 hdrColor = texture(uScreenTexture, TexCoords).rgb;
     vec3 bloomColor = texture(uBloomTexture, TexCoords).rgb;
+    
+    if (uProcessBloom)
+        hdrColor = hdrColor + bloomColor;
 
-    hdrColor = hdrColor + bloomColor;
-
-	if (uProcess)
+	if (uProcessHdr)
 	{
 		vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
         hdrColor = toneMapped;
 	}
-	if (uGamma)
-	{
-		hdrColor = pow(hdrColor, vec3(1.0/gamma));
-	}
+    // Gamma correction
+    if (uProcessGamma)
+	    hdrColor = pow(hdrColor, vec3(1.0/uGamma));
     
     FragColor = vec4(hdrColor, 1.0);
 })GLSL";
@@ -365,8 +358,6 @@ void demo_hdr::Update(const platform_io& IO)
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
 
 #pragma region Draw scene in FBO
-    if (processGamma)
-        glEnable(GL_FRAMEBUFFER_SRGB);
 
     glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
@@ -382,32 +373,34 @@ void demo_hdr::Update(const platform_io& IO)
     // Render tavern
     this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
-    if (processGamma)
-        glDisable(GL_FRAMEBUFFER_SRGB);
+    
 #pragma endregion
 
 #pragma region Blur Process
     bool horizontal = true, first_iteration = true;
-    glUseProgram(blurProgram);
-    for (int i = 0; i < pingpongAmount; i++)
+    if (processBloom)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
-        glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);
-
-        if (first_iteration)
+        glUseProgram(blurProgram);
+        for (int i = 0; i < pingpongAmount; i++)
         {
-            glBindTexture(GL_TEXTURE_2D, bloomCBO);
-            first_iteration = false;
-        }
-        else
-        {
-            glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
-        }
+            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+            glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);
 
-        glDisable(GL_DEPTH_TEST);
-        RenderQuad();
+            if (first_iteration)
+            {
+                glBindTexture(GL_TEXTURE_2D, bloomCBO);
+                first_iteration = false;
+            }
+            else
+            {
+                glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
+            }
 
-        horizontal = !horizontal;
+            glDisable(GL_DEPTH_TEST);
+            RenderQuad();
+
+            horizontal = !horizontal;
+        }
     }
 #pragma endregion
 
@@ -419,8 +412,10 @@ void demo_hdr::Update(const platform_io& IO)
 
     glUseProgram(hdrProgram);
     // Set uniforms
-    glUniform1i(glGetUniformLocation(hdrProgram, "uProcess"), processHdr);
-    glUniform1i(glGetUniformLocation(hdrProgram, "uGamma"), false);
+    glUniform1i(glGetUniformLocation(hdrProgram, "uProcessHdr"), processHdr);
+    glUniform1i(glGetUniformLocation(hdrProgram, "uProcessGamma"), processGamma);
+    glUniform1i(glGetUniformLocation(hdrProgram, "uProcessBloom"), processBloom);
+    glUniform1f(glGetUniformLocation(hdrProgram, "uGamma"), gamma);
     glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
 
     glDisable(GL_DEPTH_TEST);
@@ -430,6 +425,7 @@ void demo_hdr::Update(const platform_io& IO)
     glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
         
     RenderQuad();
+
 #pragma endregion
     
     // Render tavern wireframe
@@ -448,11 +444,23 @@ void demo_hdr::DisplayDebugUI()
     {
         // Debug display
         ImGui::Checkbox("HDR", &processHdr);
-        ImGui::Checkbox("Gamma", &processGamma);
+        if (processHdr)
+            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
 
-        ImGui::SliderFloat("Exposure", &exposure, 0.1f, 8.f);
-        ImGui::SliderFloat("Brightness clamp", &brightnessClamp, 0.f, 1.f);
-        ImGui::SliderInt("Blur amount", &pingpongAmount, 1, 20);
+        ImGui::Spacing();
+
+        ImGui::Checkbox("Process gamma", &processGamma);
+        if (processGamma)
+            ImGui::SliderFloat("Gamma", &gamma, 0.45f, 4.4f);
+
+        ImGui::Spacing();
+
+        ImGui::Checkbox("Process bloom", &processBloom);
+        if (processBloom)
+        {
+            ImGui::SliderFloat("Brightness clamp", &brightnessClamp, 0.f, 1.f);
+            ImGui::SliderInt("Blur amount", &pingpongAmount, 1, 30);
+        }
 
         ImGui::Spacing();
 
@@ -492,14 +500,12 @@ void demo_hdr::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix
     glUniformMatrix4fv(glGetUniformLocation(Program, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
     glUniform3fv(glGetUniformLocation(Program, "uViewPosition"), 1, Camera.Position.e);
     
-    // Gamma correction
-    //glUniform1i(glGetUniformLocation(Program, "uGamma"), processGamma);
     glUniform1f(glGetUniformLocation(Program, "uBrightness"), brightnessClamp);
 
     // Bind uniform buffer and textures
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, TavernScene.DiffuseTexture);
+    glBindTexture(GL_TEXTURE_2D, TavernScene.LinearDiffuseTexture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, TavernScene.EmissiveTexture);
 
