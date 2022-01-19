@@ -42,6 +42,9 @@ private:
 
     tavern_scene TavernScene;
 
+    bool ratioXYkernel = true;
+    float x_ratio_kernel = 800.f;
+    float y_ratio_kernel = 800.f;
     bool processGreyScale = false;
     bool processInverse = false;
     bool processKernel = false;

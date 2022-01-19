@@ -147,12 +147,18 @@ uniform bool uProcessInverse;
 uniform bool uProcessKernel;
 
 uniform mat3 uKernel;
+uniform float x_ratio;
+uniform float y_ratio;
 
+// shader ouputs
+out vec4 FragColor;
 
-const float offset_x = 1.0f / 800.0f;
-const float offset_y = 1.0f / 800.0f;
+void PostProcess()
+{
+    float offset_x = 1.0f / x_ratio;
+    float offset_y = 1.0f / y_ratio;
 
-vec2 offsets[9] = vec2[](
+    vec2 offsets[9] = vec2[](
         vec2(-offset_x,  offset_y), // top-left
         vec2( 0.0f,    offset_y), // top-center
         vec2( offset_x,  offset_y), // top-right
@@ -164,11 +170,6 @@ vec2 offsets[9] = vec2[](
         vec2( offset_x, -offset_y)  // bottom-right    
     );
 
-// shader ouputs
-out vec4 FragColor;
-
-void PostProcess()
-{
     if (uProcessKernel)
     {
         vec3 color = vec3(0.0f);
@@ -470,6 +471,8 @@ void demo_full::Update(const platform_io& IO)
     glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessGreyScale"), processGreyScale);
     glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessKernel"), processKernel);
     glUniformMatrix3fv(glGetUniformLocation(PostProcessProgram, "uKernel"), 1, GL_FALSE, kernelMat.e);
+    glUniform1f(glGetUniformLocation(PostProcessProgram, "x_ratio"), x_ratio_kernel);
+    glUniform1f(glGetUniformLocation(PostProcessProgram, "y_ratio"), y_ratio_kernel);
 
     glDisable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
@@ -555,6 +558,20 @@ void demo_full::DisplayDebugUI()
                 ImGui::DragFloat3("c0", kernelMat.c[0].e, 0.01f);
                 ImGui::DragFloat3("c1", kernelMat.c[1].e, 0.01f);
                 ImGui::DragFloat3("c2", kernelMat.c[2].e, 0.01f);
+
+                ImGui::Spacing();
+
+                ImGui::Checkbox("Ratio X = Y", &ratioXYkernel);
+                if (ratioXYkernel)
+                {
+                    ImGui::SliderFloat("Ratio XY", &x_ratio_kernel, 5.f, 1000.f);
+                    y_ratio_kernel = x_ratio_kernel;
+                }
+                else
+                {
+                    ImGui::SliderFloat("Ratio X", &x_ratio_kernel, 5.f, 1000.f);
+                    ImGui::SliderFloat("Ratio Y", &y_ratio_kernel, 5.f, 1000.f);
+                }
             }
             ImGui::TreePop();
         }
@@ -583,6 +600,8 @@ void demo_full::DisplayDebugUI()
             }
             ImGui::TreePop();
         }
+
+        ImGui::Spacing();
 
         if (ImGui::TreeNodeEx("Camera"))
         {

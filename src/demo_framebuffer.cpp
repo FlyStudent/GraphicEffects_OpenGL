@@ -115,10 +115,15 @@ uniform bool uProcessKernel;
 
 uniform mat3 uKernel;
 
-const float offset_x = 1.0f / 800.0f;
-const float offset_y = 1.0f / 800.0f;
+uniform float x_ratio;
+uniform float y_ratio;
 
-vec2 offsets[9] = vec2[](
+void main()
+{
+    float offset_x = 1.0f / x_ratio;
+    float offset_y = 1.0f / y_ratio;
+
+    vec2 offsets[9] = vec2[](
         vec2(-offset_x,  offset_y), // top-left
         vec2( 0.0f,    offset_y), // top-center
         vec2( offset_x,  offset_y), // top-right
@@ -129,9 +134,7 @@ vec2 offsets[9] = vec2[](
         vec2( 0.0f,   -offset_y), // bottom-center
         vec2( offset_x, -offset_y)  // bottom-right    
     );
-
-void main()
-{             
+           
     FragColor = texture(screenTexture, texCoords);
                  
     if (uProcessKernel)
@@ -291,6 +294,9 @@ void demo_framebuffer::Update(const platform_io& IO)
     glUniform1i(glGetUniformLocation(FramebufferProgram, "uProcessGreyScale"), processGreyScale);
     glUniform1i(glGetUniformLocation(FramebufferProgram, "uProcessKernel"), processKernel);
     glUniformMatrix3fv(glGetUniformLocation(FramebufferProgram, "uKernel"), 1, GL_FALSE, kernelMat.e);
+    glUniform1f(glGetUniformLocation(FramebufferProgram, "x_ratio"), x_ratio_kernel);
+    glUniform1f(glGetUniformLocation(FramebufferProgram, "y_ratio"), y_ratio_kernel);
+
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindVertexArray(quadVAO);
@@ -372,6 +378,20 @@ void demo_framebuffer::DisplayDebugUI()
             ImGui::DragFloat3("c0", kernelMat.c[0].e, 0.01f);
             ImGui::DragFloat3("c1", kernelMat.c[1].e, 0.01f);
             ImGui::DragFloat3("c2", kernelMat.c[2].e, 0.01f);
+
+            ImGui::Spacing();
+
+            ImGui::Checkbox("Ratio X = Y", &ratioXYkernel);
+            if (ratioXYkernel)
+            {
+                ImGui::SliderFloat("Ratio XY", &x_ratio_kernel, 5.f, 1000.f);
+                y_ratio_kernel = x_ratio_kernel;
+            }
+            else
+            {
+                ImGui::SliderFloat("Ratio X", &x_ratio_kernel, 5.f, 1000.f);
+                ImGui::SliderFloat("Ratio Y", &y_ratio_kernel, 5.f, 1000.f);
+            }
         }
 
         TavernScene.InspectLights();

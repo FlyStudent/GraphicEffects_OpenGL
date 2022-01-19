@@ -59,6 +59,11 @@ private:
     bool processGreyScale = false;
     bool processInverse = false;
     bool processKernel = false;
+    bool ratioXYkernel = true;
+
+    float x_ratio_kernel = 800.f;
+    float y_ratio_kernel = 800.f;
+
     mat3    kernelMat = {
             0,0,0,
             0,1,0,
