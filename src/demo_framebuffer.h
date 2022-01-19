@@ -42,8 +42,14 @@ private:
 
     tavern_scene TavernScene;
 
-    PostProcessType ppt = PostProcessType::GREYSCALE;
-    mat3 kernelMat;
+    bool processGreyScale = false;
+    bool processInverse = false;
+    bool processKernel = false;
+    mat3    kernelMat = {
+            0,0,0,
+            0,1,0,
+            0,0,0
+    };
 
     bool Wireframe = false;
 };

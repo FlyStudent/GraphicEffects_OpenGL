@@ -142,8 +142,52 @@ uniform bool uProcessBloom;
 uniform float uGamma;
 uniform float uExposure;
 
+uniform bool uProcessGreyScale;
+uniform bool uProcessInverse;
+uniform bool uProcessKernel;
+
+uniform mat3 uKernel;
+
+
+const float offset_x = 1.0f / 800.0f;
+const float offset_y = 1.0f / 800.0f;
+
+vec2 offsets[9] = vec2[](
+        vec2(-offset_x,  offset_y), // top-left
+        vec2( 0.0f,    offset_y), // top-center
+        vec2( offset_x,  offset_y), // top-right
+        vec2(-offset_x,  0.0f),   // center-left
+        vec2( 0.0f,    0.0f),   // center-center
+        vec2( offset_x,  0.0f),   // center-right
+        vec2(-offset_x, -offset_y), // bottom-left
+        vec2( 0.0f,   -offset_y), // bottom-center
+        vec2( offset_x, -offset_y)  // bottom-right    
+    );
+
 // shader ouputs
 out vec4 FragColor;
+
+void PostProcess()
+{
+    if (uProcessKernel)
+    {
+        vec3 color = vec3(0.0f);
+        for(int i = 0; i < 3; i++)
+            for(int j = 0; j < 3; j++)
+                color += vec3(texture(uScreenTexture, TexCoords.st + offsets[i*3 + j])) * uKernel[i][j];
+
+        FragColor = vec4(color, 1.0f);
+    }
+
+    if (uProcessInverse)
+        FragColor = vec4(1.0f) - FragColor;                         
+
+    if (uProcessGreyScale)
+    {
+        float average = (FragColor.r + FragColor.g + FragColor.b) / 3.f; 
+        FragColor = vec4(average, average, average, 1.0f);
+    }
+}
 
 void main()
 {
@@ -163,6 +207,9 @@ void main()
 	    hdrColor = pow(hdrColor, vec3(1.0/uGamma));
     
     FragColor = vec4(hdrColor, 1.0);
+
+    PostProcess();
+
 })GLSL";
 #pragma endregion
 
@@ -201,94 +248,6 @@ void main()
 })GLSL";
 #pragma endregion
 
-#pragma region POST-PROCESS FS
-static const char* framebufferFragmentShaderStr = R"GLSL(
-out vec4 FragColor;
-in vec2 texCoords;
-
-uniform sampler2D screenTexture;
-uniform int uPPT;
-
-const float offset_x = 1.0f / 800.0f;
-const float offset_y = 1.0f / 800.0f;
-
-vec2 offsets[9] = vec2[](
-        vec2(-offset_x,  offset_y), // top-left
-        vec2( 0.0f,    offset_y), // top-center
-        vec2( offset_x,  offset_y), // top-right
-        vec2(-offset_x,  0.0f),   // center-left
-        vec2( 0.0f,    0.0f),   // center-center
-        vec2( offset_x,  0.0f),   // center-right
-        vec2(-offset_x, -offset_y), // bottom-left
-        vec2( 0.0f,   -offset_y), // bottom-center
-        vec2( offset_x, -offset_y)  // bottom-right    
-    );
-
-float kernel1[9] = float[](
-    1.0 / 9, 1.0 / 9, 1.0 / 9,
-    1.0 / 9, 1.0 / 9, 1.0 / 9,
-    1.0 / 9, 1.0 / 9, 1.0 / 9
-    );
-float kernel2[9] = float[](
-        2,  2,  2,
-        2, -15,  2,
-        2,  2,  2
-    );
-float kernel3[9] = float[](
-        2,  2,  2,
-        2, -16,  2,
-        2,  2,  2
-    );
-float kernel4[9] = float[](
-        -2, -1,  0,
-        -1,  1,  1,
-         0,  1,  2
-    );
-
-void main()
-{
-    if (uPPT == 1)
-        FragColor = texture(screenTexture, texCoords);                                      //Normal
-    else if (uPPT == 2)
-        FragColor = vec4(1.0f) - texture(screenTexture, texCoords);                         //Inversion
-    else if (uPPT == 3)
-    {
-        FragColor = texture(screenTexture, texCoords);                                      //Grayscale
-        float average = (FragColor.r + FragColor.g + FragColor.b) / 3.0f; 
-        FragColor = vec4(average, average, average, 1.0f);
-    }
-    else if(uPPT == 4)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel1[i];
-        FragColor = vec4(color, 1.0f);
-    }
-    else if(uPPT == 5)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel2[i];
-        FragColor = vec4(color, 1.0f);
-    }
-    else if(uPPT == 6)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel3[i];
-        FragColor = vec4(color, 1.0f);
-    }
-    else if(uPPT == 7)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel4[i];
-        FragColor = vec4(color, 1.0f);
-    }
-}
-)GLSL";
-#pragma endregion
-
 demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO)
     : GLDebug(GLDebug), TavernScene(GLCache)
 {
@@ -304,7 +263,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
 
         Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
 
-        hdrProgram = GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
+        PostProcessProgram = GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
 
         blurProgram = GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
     }
@@ -354,9 +313,9 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glUseProgram(blurProgram);
         glUniform1i(glGetUniformLocation(blurProgram, "screenTexture"), 0);
 
-        glUseProgram(hdrProgram);
-        glUniform1i(glGetUniformLocation(hdrProgram, "uScreenBuffer"), 0);
-        glUniform1i(glGetUniformLocation(hdrProgram, "uBloomTexture"), 1);
+        glUseProgram(PostProcessProgram);
+        glUniform1i(glGetUniformLocation(PostProcessProgram, "uScreenBuffer"), 0);
+        glUniform1i(glGetUniformLocation(PostProcessProgram, "uBloomTexture"), 1);
 
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
@@ -389,7 +348,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
                 GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0
             );
         }
-        hdrCBO = colorBuffers[0];
+        CBO = colorBuffers[0];
         bloomCBO = colorBuffers[1];
 
         unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
@@ -427,6 +386,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongCBO[i], 0);
         }
     }
+    
 }
 
 demo_full::~demo_full()
@@ -435,7 +395,7 @@ demo_full::~demo_full()
     glDeleteVertexArrays(1, &VAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteProgram(Program);
-    glDeleteProgram(hdrProgram);
+    glDeleteProgram(PostProcessProgram);
 }
 
 void demo_full::Update(const platform_io& IO)
@@ -498,17 +458,22 @@ void demo_full::Update(const platform_io& IO)
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(hdrProgram);
+    glUseProgram(PostProcessProgram);
     // Set uniforms
-    glUniform1i(glGetUniformLocation(hdrProgram, "uProcessHdr"), processHdr);
-    glUniform1i(glGetUniformLocation(hdrProgram, "uProcessGamma"), processGamma);
-    glUniform1i(glGetUniformLocation(hdrProgram, "uProcessBloom"), processBloom);
-    glUniform1f(glGetUniformLocation(hdrProgram, "uGamma"), gamma);
-    glUniform1f(glGetUniformLocation(hdrProgram, "uExposure"), exposure);
+    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessHdr"), processHdr);
+    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessGamma"), processGamma);
+    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessBloom"), processBloom);
+    glUniform1f(glGetUniformLocation(PostProcessProgram, "uGamma"), gamma);
+    glUniform1f(glGetUniformLocation(PostProcessProgram, "uExposure"), exposure);
+
+    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessInverse"), processInverse);
+    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessGreyScale"), processGreyScale);
+    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessKernel"), processKernel);
+    glUniformMatrix3fv(glGetUniformLocation(PostProcessProgram, "uKernel"), 1, GL_FALSE, kernelMat.e);
 
     glDisable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, hdrCBO);
+    glBindTexture(GL_TEXTURE_2D, CBO);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
 
@@ -535,37 +500,66 @@ void demo_full::DisplayDebugUI()
     {
         if (ImGui::TreeNode("Post process"))
         {
-            const char* items[] = { "Normal", "Inversion", "Greyscale", "Kernel effects 1", "Kernel effects 2" , "Kernel effects 3" , "Kernel effects 4" };
-            static int current = 2;
-            if (ImGui::ListBox("Post Process Type", &current, items, IM_ARRAYSIZE(items), IM_ARRAYSIZE(items)))
+            ImGui::Checkbox("Grey scale", &processGreyScale);
+            ImGui::Checkbox("Inverse", &processInverse);
+            ImGui::Checkbox("Kernel effects", &processKernel);
+
+            if (processKernel)
             {
-                switch (current)
+                const char* items[] = { "Normal", "Kernel effects 1", "Kernel effects 2" , "Kernel effects 3" , "Kernel effects 4" };
+                static int current = 0;
+                if (ImGui::ListBox("Post Process Type", &current, items, IM_ARRAYSIZE(items), IM_ARRAYSIZE(items)))
                 {
-                case 1:
-                    postProcessType = PostProcessType::INVERSION;
-                    break;
-                case 2:
-                    postProcessType = PostProcessType::GREYSCALE;
-                    break;
-                case 3:
-                    postProcessType = PostProcessType::KERNEL1;
-                    break;
-                case 4:
-                    postProcessType = PostProcessType::KERNEL2;
-                    break;
-                case 5:
-                    postProcessType = PostProcessType::KERNEL3;
-                    break;
-                case 6:
-                    postProcessType = PostProcessType::KERNEL4;
-                    break;
-                default:
-                    postProcessType = PostProcessType::NORMAL;
-                    break;
+                    switch (current)
+                    {
+                    case 1:
+                        kernelMat = {
+                            1.0 / 9, 1.0 / 9, 1.0 / 9,
+                            1.0 / 9, 1.0 / 9, 1.0 / 9,
+                            1.0 / 9, 1.0 / 9, 1.0 / 9
+                        };
+                        break;
+                    case 2:
+                        kernelMat = {
+                            2,  2,  2,
+                            2, -15,  2,
+                            2,  2,  2
+                        };
+                        break;
+                    case 3:
+                        kernelMat = {
+                            2,  2,  2,
+                            2, -16,  2,
+                            2,  2,  2
+                        };
+                        break;
+                    case 4:
+                        kernelMat = {
+                            -2, -1,  0,
+                            -1,  1,  1,
+                             0,  1,  2
+                        };
+                        break;
+                    default:
+                        kernelMat = {
+                            0,0,0,
+                            0,1,0,
+                            0,0,0
+                        };
+                        break;
+                    }
                 }
+
+                ImGui::Spacing();
+
+                ImGui::DragFloat3("c0", kernelMat.c[0].e, 0.01f);
+                ImGui::DragFloat3("c1", kernelMat.c[1].e, 0.01f);
+                ImGui::DragFloat3("c2", kernelMat.c[2].e, 0.01f);
             }
             ImGui::TreePop();
         }
+
+        ImGui::Spacing();
 
         if (ImGui::TreeNode("HDR"))
         {
@@ -589,7 +583,6 @@ void demo_full::DisplayDebugUI()
             }
             ImGui::TreePop();
         }
-
 
         if (ImGui::TreeNodeEx("Camera"))
         {

@@ -33,27 +33,38 @@ private:
     GLuint VAO = 0;
     GLuint quadVAO = 0;
 
-    GLuint blurProgram = 0;
+    GLuint FBO = 0;
+    GLuint RBO = 0;
+    GLuint CBO = 0;
 
     // HDR objects
+    GLuint PostProcessProgram = 0;
+
     bool processHdr = true;
     bool processGamma = true;
-    bool processBloom = true;
 
     float gamma = 2.2f;
     float exposure = 1.f;
-    float brightnessClamp = 0.5f;
+
+    GLuint bloomCBO = 0;
+    GLuint blurProgram = 0;
+    bool processBloom = true;
 
     int pingpongAmount = 8;
     unsigned int pingpongFBO[2];
     unsigned int pingpongCBO[2];
+    float brightnessClamp = 0.5f;
 
-    GLuint hdrProgram = 0;
-    GLuint FBO = 0;
-    GLuint RBO = 0;
-    GLuint hdrCBO = 0;
-    GLuint bloomCBO = 0;
-    GLuint postProcessCBO = 0;
+    // Post process Objects
+    bool processGreyScale = false;
+    bool processInverse = false;
+    bool processKernel = false;
+    mat3    kernelMat = {
+            0,0,0,
+            0,1,0,
+            0,0,0
+    };
+
 
     tavern_scene TavernScene;
 

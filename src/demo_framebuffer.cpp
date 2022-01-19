@@ -109,7 +109,9 @@ out vec4 FragColor;
 in vec2 texCoords;
 
 uniform sampler2D screenTexture;
-uniform int uPPT;
+uniform bool uProcessGreyScale;
+uniform bool uProcessInverse;
+uniform bool uProcessKernel;
 
 uniform mat3 uKernel;
 
@@ -129,21 +131,26 @@ vec2 offsets[9] = vec2[](
     );
 
 void main()
-{                              //Normal
-    if (uPPT == 2)
-        FragColor = vec4(1.0f) - texture(screenTexture, texCoords);                         //Inversion
-    if (uPPT == 3)
-    {
-        FragColor = texture(screenTexture, texCoords);                                      //Grayscale
-        float average = (FragColor.r + FragColor.g + FragColor.b) / 3.0f; 
-        FragColor = vec4(average, average, average, 1.0f);
-    }
-    if(uPPT == 1 || uPPT >= 4)
+{             
+    FragColor = texture(screenTexture, texCoords);
+                 
+    if (uProcessKernel)
     {
         vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * uKernel[i];
+        for(int i = 0; i < 3; i++)
+            for(int j = 0; j < 3; j++)
+                color += vec3(texture(screenTexture, texCoords.st + offsets[i*3 + j])) * uKernel[i][j];
+
         FragColor = vec4(color, 1.0f);
+    }
+
+    if (uProcessInverse)
+        FragColor = vec4(1.0f) - FragColor;                         
+
+    if (uProcessGreyScale)
+    {
+        float average = (FragColor.r + FragColor.g + FragColor.b) / 3.f; 
+        FragColor = vec4(average, average, average, 1.0f);
     }
 }
 )GLSL";
@@ -280,8 +287,10 @@ void demo_framebuffer::Update(const platform_io& IO)
     glUseProgram(FramebufferProgram);
 
     // Set ttp uniform
-    glUniform1i(glGetUniformLocation(FramebufferProgram, "uPPT"), (int)ppt + 1);
-    glUniformMatrix3fv(glGetUniformLocation(FramebufferProgram, "uKernel"), 9 * sizeof(float), GL_FALSE, kernelMat.e);
+    glUniform1i(glGetUniformLocation(FramebufferProgram, "uProcessInverse"), processInverse);
+    glUniform1i(glGetUniformLocation(FramebufferProgram, "uProcessGreyScale"), processGreyScale);
+    glUniform1i(glGetUniformLocation(FramebufferProgram, "uProcessKernel"), processKernel);
+    glUniformMatrix3fv(glGetUniformLocation(FramebufferProgram, "uKernel"), 1, GL_FALSE, kernelMat.e);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindVertexArray(quadVAO);
@@ -307,62 +316,63 @@ void demo_framebuffer::DisplayDebugUI()
             ImGui::TreePop();
         }
 
-        const char* items[] = { "Normal", "Inversion", "Greyscale", "Kernel effects 1", "Kernel effects 2" , "Kernel effects 3" , "Kernel effects 4" };
-        static int current = 2;
-        if (ImGui::ListBox("Post Process Type", &current, items, IM_ARRAYSIZE(items), IM_ARRAYSIZE(items)))
+        ImGui::Checkbox("Grey scale", &processGreyScale);
+
+        ImGui::Checkbox("Inverse", &processInverse);
+        ImGui::Checkbox("Kernel effects", &processKernel);
+
+        if (processKernel)
         {
-            switch (current)
+            const char* items[] = { "Normal", "Kernel effects 1", "Kernel effects 2" , "Kernel effects 3" , "Kernel effects 4" };
+            static int current = 0;
+            if (ImGui::ListBox("Post Process Type", &current, items, IM_ARRAYSIZE(items), IM_ARRAYSIZE(items)))
             {
-            case 1:
-                ppt = PostProcessType::INVERSION;
-                break;
-            case 2:
-                ppt = PostProcessType::GREYSCALE;
-                break;
-            case 3:
-                ppt = PostProcessType::KERNEL1;
-                kernelMat = {
-                    1.0 / 9, 1.0 / 9, 1.0 / 9,
-                    1.0 / 9, 1.0 / 9, 1.0 / 9,
-                    1.0 / 9, 1.0 / 9, 1.0 / 9
-                };
-                break;
-            case 4:
-                ppt = PostProcessType::KERNEL2;
-                kernelMat = {
-                    2,  2,  2,
-                    2, -15,  2,
-                    2,  2,  2
-                };
-                break;
-            case 5:
-                ppt = PostProcessType::KERNEL3;
-                kernelMat = {
-                    2,  2,  2,
-                    2, -16,  2,
-                    2,  2,  2
-                };
-                break;
-            case 6:
-                ppt = PostProcessType::KERNEL4;
-                kernelMat = {
-                    -2, -1,  0,
-                    -1,  1,  1,
-                     0,  1,  2
-                };
-                break;
-            default:
-                ppt = PostProcessType::NORMAL;
-                kernelMat = {
-                    0,0,0,
-                    0,1,0,
-                    0,0,0
-                };
-                break;
+                switch (current)
+                {
+                case 1:
+                    kernelMat = {
+                        1.0 / 9, 1.0 / 9, 1.0 / 9,
+                        1.0 / 9, 1.0 / 9, 1.0 / 9,
+                        1.0 / 9, 1.0 / 9, 1.0 / 9
+                    };
+                    break;
+                case 2:
+                    kernelMat = {
+                        2,  2,  2,
+                        2, -15,  2,
+                        2,  2,  2
+                    };
+                    break;
+                case 3:
+                    kernelMat = {
+                        2,  2,  2,
+                        2, -16,  2,
+                        2,  2,  2
+                    };
+                    break;
+                case 4:
+                    kernelMat = {
+                        -2, -1,  0,
+                        -1,  1,  1,
+                         0,  1,  2
+                    };
+                    break;
+                default:
+                    kernelMat = {
+                        0,0,0,
+                        0,1,0,
+                        0,0,0
+                    };
+                    break;
+                }
             }
+
+            ImGui::Spacing();
+
+            ImGui::DragFloat3("c0", kernelMat.c[0].e, 0.01f);
+            ImGui::DragFloat3("c1", kernelMat.c[1].e, 0.01f);
+            ImGui::DragFloat3("c2", kernelMat.c[2].e, 0.01f);
         }
-
-
 
         TavernScene.InspectLights();
 
