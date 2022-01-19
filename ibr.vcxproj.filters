@@ -111,6 +111,9 @@
     <ClCompile Include="src\asteroid_mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\demo_skybox.cpp">
+      <Filter>Source Files\demo</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera.h">
@@ -214,6 +217,9 @@
     </ClInclude>
     <ClInclude Include="src\asteroid_mesh.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\demo_skybox.h">
+      <Filter>Source Files\demo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -333,7 +333,27 @@ namespace Mat4
             0.f,                             0.f,                             -(Far * Near * 2.f) / (Far - Near), 0.f
         };
     }
-    
+
+    inline mat4 Ortho(float Left, float Right, float Bottom, float Top, float Near, float Far)
+    {
+        return
+        {
+            (2.f) / (Right - Left),   0.f,                              0.f,                              0.f,
+            0.f,                             (2.f) / (Top - Bottom),  0.f,                                 0.f,
+            0.f,                       0.f,      -(2.f) / (Far - Near),  0.f,
+            -(Right + Left) / (Right - Left),    -(Top + Bottom) / (Top - Bottom),         -(Far + Near) / (Far - Near), 0.f
+        };
+    }
+
+    inline mat4 OrthoProjection(float FovY, float Aspect, float Near, float Far) 
+    {
+        float Top = Near * tanf(FovY / 2.f);
+        float Right = Top * Aspect;
+        return Ortho(-Right, Right, -Top, Top, Near, Far);
+    }
+
+
+
     inline mat4 Perspective(float FovY, float Aspect, float Near, float Far)
     {
         float Top = Near * tanf(FovY / 2.f);

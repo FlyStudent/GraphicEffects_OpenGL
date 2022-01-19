@@ -43,6 +43,22 @@ camera CameraUpdateFPS(const camera& PreviousCamera, const camera_inputs& Inputs
     return Camera;
 }
 
+void camera::SetFace(int i) 
+{
+    switch (i) 
+    {
+    case 0: Pitch = Math::ToRadians(0.f); Yaw = Math::ToRadians(90.f); break;
+        case 1: Pitch = Math::ToRadians(0.f); Yaw = Math::ToRadians(-90.f); break;
+
+        case 2: Pitch = Math::ToRadians(90.f); Yaw = Math::ToRadians(180.f); break;
+        case 3: Pitch = Math::ToRadians(-90.f); Yaw = Math::ToRadians(180.f); break;
+       
+        
+        case 5: Pitch = Math::ToRadians(0.f); Yaw = -Math::ToRadians(0.f); break;
+        case 4: Pitch = Math::ToRadians(0.f); Yaw = Math::ToRadians(180.f); break;
+    }
+}
+
 camera CameraUpdateFreefly(const camera& PreviousCamera, const camera_inputs& Inputs)
 {
     camera Camera = PreviousCamera;
@@ -107,6 +123,16 @@ mat4 CameraGetMatrix(const camera& Camera)
     return CameraTransform;
 }
 
+mat4 CameraGetMatrixEx(const camera& Camera, const v3& offset)
+{
+    // We know how to compute the inverse of the camera
+    mat4 CameraTransform = Mat4::Identity();
+    CameraTransform *= Mat4::Translate(Camera.Position + offset);
+    CameraTransform *= Mat4::RotateY(Camera.Yaw);
+    CameraTransform *= Mat4::RotateX(Camera.Pitch);
+    return CameraTransform;
+}
+
 mat4 CameraGetInverseMatrix(const camera& Camera)
 {
     // We know how to compute the inverse of the camera
@@ -114,5 +140,14 @@ mat4 CameraGetInverseMatrix(const camera& Camera)
     ViewTransform *= Mat4::RotateX(-Camera.Pitch);
     ViewTransform *= Mat4::RotateY(-Camera.Yaw);
     ViewTransform *= Mat4::Translate(-Camera.Position);
+    return ViewTransform;
+}
+
+mat4 CameraGetInverseMatrixWT(const camera& Camera)
+{
+    // We know how to compute the inverse of the camera
+    mat4 ViewTransform = Mat4::Identity();
+    ViewTransform *= Mat4::RotateX(-Camera.Pitch);
+    ViewTransform *= Mat4::RotateY(-Camera.Yaw);
     return ViewTransform;
 }

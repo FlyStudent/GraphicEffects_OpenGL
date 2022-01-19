@@ -4,6 +4,8 @@
 #include "types.h"
 #include "opengl_helpers_cache.h"
 #include "opengl_helpers_wireframe.h"
+#include <vector>
+#include <string>
 
 enum image_flags
 {
@@ -64,4 +66,5 @@ namespace GL
     const char* GetShaderStructsDefinitions();
     void UploadTexture(const char* Filename, int ImageFlags = 0, int* WidthOut = nullptr, int* HeightOut = nullptr);
     void UploadCheckerboardTexture(int Width, int Height, int SquareSize);
+
 }

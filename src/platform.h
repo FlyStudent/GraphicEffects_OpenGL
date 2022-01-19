@@ -26,6 +26,7 @@ struct platform_io
     double DeltaTime;
 
     bool MouseCaptured;
+    bool hasJustClicked;
     float DeltaMouseX;
     float DeltaMouseY;
     float MouseX;

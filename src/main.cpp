@@ -31,6 +31,8 @@
 #include "demo_pg_billboard2.h"
 #include "demo_pg_postprocess.h"
 #include "demo_hdr.h"
+#include "demo_skybox.h"
+
 // TODO(demo): Add headers here
 
 #if 0
@@ -248,8 +250,9 @@ int main(int argc, char* argv[])
         int DemoId = 0; // Change this to start with another demo
         std::unique_ptr<demo> Demos[] = 
         {
-            std::make_unique<demo_framebuffer>(GLCache, GLDebug, App.IO),
+            std::make_unique<demo_skybox>(GLCache, GLDebug),
             std::make_unique<demo_full>(GLCache, GLDebug, App.IO),
+            std::make_unique<demo_framebuffer>(GLCache, GLDebug, App.IO),
             std::make_unique<demo_instancing>(GLCache, GLDebug),
             std::make_unique<demo_normalmapping>(GLCache, GLDebug),
             std::make_unique<demo_hdr>(GLCache, GLDebug, App.IO),
