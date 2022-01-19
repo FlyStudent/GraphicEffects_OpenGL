@@ -111,20 +111,8 @@ in vec2 texCoords;
 uniform sampler2D screenTexture;
 uniform int uPPT;
 
-const float offset_x = 1.0f / 800.0f;
-const float offset_y = 1.0f / 800.0f;
-
-vec2 offsets[9] = vec2[](
-        vec2(-offset_x,  offset_y), // top-left
-        vec2( 0.0f,    offset_y), // top-center
-        vec2( offset_x,  offset_y), // top-right
-        vec2(-offset_x,  0.0f),   // center-left
-        vec2( 0.0f,    0.0f),   // center-center
-        vec2( offset_x,  0.0f),   // center-right
-        vec2(-offset_x, -offset_y), // bottom-left
-        vec2( 0.0f,   -offset_y), // bottom-center
-        vec2( offset_x, -offset_y)  // bottom-right    
-    );
+uniform float x_ratio;
+uniform float y_ratio;
 
 float kernel1[9] = float[](
     1.0 / 9, 1.0 / 9, 1.0 / 9,
@@ -149,6 +137,21 @@ float kernel4[9] = float[](
 
 void main()
 {
+    float offset_x = 1.0f / x_ratio;
+    float offset_y = 1.0f / y_ratio;
+
+    vec2 offsets[9] = vec2[](
+        vec2(-offset_x,  offset_y), // top-left
+        vec2( 0.0f,    offset_y), // top-center
+        vec2( offset_x,  offset_y), // top-right
+        vec2(-offset_x,  0.0f),   // center-left
+        vec2( 0.0f,    0.0f),   // center-center
+        vec2( offset_x,  0.0f),   // center-right
+        vec2(-offset_x, -offset_y), // bottom-left
+        vec2( 0.0f,   -offset_y), // bottom-center
+        vec2( offset_x, -offset_y)  // bottom-right    
+        );
+
     if (uPPT == 1)
         FragColor = texture(screenTexture, texCoords);                                      //Normal
     else if (uPPT == 2)
@@ -323,6 +326,9 @@ void demo_framebuffer::Update(const platform_io& IO)
 
     // Set ttp uniform
     glUniform1i(glGetUniformLocation(FramebufferProgram, "uPPT"), (int)ppt + 1);
+    // Set kernel uniform
+    glUniform1f(glGetUniformLocation(FramebufferProgram, "x_ratio"), x_ratio_kernel);
+    glUniform1f(glGetUniformLocation(FramebufferProgram, "y_ratio"), y_ratio_kernel);
 
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -379,7 +385,21 @@ void demo_framebuffer::DisplayDebugUI()
             }
         }
 
-
+        if (ImGui::TreeNodeEx("Kernel effects settings"))
+        {   
+            ImGui::Checkbox("Ratio X = Y", &ratioXYkernel);
+            if(ratioXYkernel)
+            {
+                ImGui::SliderFloat("Ratio XY", &x_ratio_kernel, 5.f, 1000.f);
+                y_ratio_kernel = x_ratio_kernel;
+            }
+            else
+            {
+                ImGui::SliderFloat("Ratio X", &x_ratio_kernel, 5.f, 1000.f);
+                ImGui::SliderFloat("Ratio Y", &y_ratio_kernel, 5.f, 1000.f);
+            }
+            ImGui::TreePop();
+        }
 
         TavernScene.InspectLights();
 
