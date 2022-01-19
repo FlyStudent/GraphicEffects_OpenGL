@@ -158,9 +158,11 @@
     <ClCompile Include="externals\imgui\imgui_widgets.cpp" />
     <ClCompile Include="externals\stb_image.cpp" />
     <ClCompile Include="externals\tiny_obj_loader.cpp" />
+    <ClCompile Include="src\asteroid_mesh.cpp" />
     <ClCompile Include="src\camera.cpp" />
     <ClCompile Include="src\demo_base.cpp" />
     <ClCompile Include="src\demo_framebuffer.cpp" />
+    <ClCompile Include="src\demo_full.cpp" />
     <ClCompile Include="src\demo_hdr.cpp" />
     <ClCompile Include="src\demo_instancing.cpp" />
     <ClCompile Include="src\demo_minimal.cpp" />
@@ -184,11 +186,13 @@
     <ClInclude Include="include\imgui_internal.h" />
     <ClInclude Include="include\stb_image.h" />
     <ClInclude Include="include\tiny_obj_loader.h" />
+    <ClInclude Include="src\asteroid_mesh.h" />
     <ClInclude Include="src\camera.h" />
     <ClInclude Include="src\color.h" />
     <ClInclude Include="src\demo.h" />
     <ClInclude Include="src\demo_base.h" />
     <ClInclude Include="src\demo_framebuffer.h" />
+    <ClInclude Include="src\demo_full.h" />
     <ClInclude Include="src\demo_hdr.h" />
     <ClInclude Include="src\demo_instancing.h" />
     <ClInclude Include="src\demo_minimal.h" />
@@ -203,6 +207,7 @@
     <ClInclude Include="src\opengl_helpers_cache.h" />
     <ClInclude Include="src\opengl_helpers_wireframe.h" />
     <ClInclude Include="src\platform.h" />
+    <ClInclude Include="src\post_process_type.h" />
     <ClInclude Include="src\tavern_scene.h" />
     <ClInclude Include="src\types.h" />
   </ItemGroup>

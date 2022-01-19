@@ -25,6 +25,7 @@
 #include "demo_framebuffer.h"
 #include "demo_instancing.h"
 #include "demo_normalmapping.h"
+#include "demo_full.h"
 #include "demo_pg_skybox.h"
 #include "demo_pg_billboard.h"
 #include "demo_pg_billboard2.h"
@@ -248,6 +249,7 @@ int main(int argc, char* argv[])
         std::unique_ptr<demo> Demos[] = 
         {
             std::make_unique<demo_framebuffer>(GLCache, GLDebug, App.IO),
+            std::make_unique<demo_full>(GLCache, GLDebug, App.IO),
             std::make_unique<demo_instancing>(GLCache, GLDebug),
             std::make_unique<demo_normalmapping>(GLCache, GLDebug),
             std::make_unique<demo_hdr>(GLCache, GLDebug, App.IO),

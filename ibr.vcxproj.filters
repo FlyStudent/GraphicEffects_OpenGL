@@ -105,6 +105,12 @@
     <ClCompile Include="src\demo_framebuffer.cpp">
       <Filter>Source Files\demo</Filter>
     </ClCompile>
+    <ClCompile Include="src\demo_full.cpp">
+      <Filter>Source Files\demo</Filter>
+    </ClCompile>
+    <ClCompile Include="src\asteroid_mesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera.h">
@@ -199,6 +205,15 @@
     </ClInclude>
     <ClInclude Include="src\demo_framebuffer.h">
       <Filter>Source Files\demo</Filter>
+    </ClInclude>
+    <ClInclude Include="src\demo_full.h">
+      <Filter>Source Files\demo</Filter>
+    </ClInclude>
+    <ClInclude Include="src\post_process_type.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\asteroid_mesh.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -94,42 +94,6 @@ void main()
 })GLSL";
 #pragma endregion
 
-asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
-{
-    // Create mesh
-    {
-        // Use vbo from GLCache
-        VBO = GLCache.LoadObj("media/rock.obj", 1.f, &MeshVertexCount, &MeshDesc);
-
-        glGenVertexArrays(1, &VAO);
-
-        glBindVertexArray(VAO);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.PositionOffset);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.UVOffset);
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.NormalOffset);
-    }
-
-    // Gen texture
-    {
-        DiffuseTexture = GLCache.LoadTexture("media/rock.png", IMG_FLIP | IMG_GEN_MIPMAPS);
-    }
-}
-
-void asteroid_mesh::Draw(int instance)
-{
-    glBindTexture(GL_TEXTURE_2D, DiffuseTexture);
-    // Draw mesh
-    glBindVertexArray(VAO);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, MeshVertexCount, instance);
-    //glDrawElementsInstanced(GL_TRIANGLES, MeshVertexCount, GL_UNSIGNED_INT, 0, INSTANCE);
-}
-
-
 demo_instancing::demo_instancing(GL::cache& GLCache, GL::debug& GLDebug)
     : GLDebug(GLDebug), asteroid(GLCache)
 {
@@ -303,7 +267,7 @@ void demo_instancing::GenMatrices()
 
             mat4 model = Mat4::Identity();
             // position
-            float angle = (float)i / (float)INSTANCE * 360.f + speeds[i].x;
+            float angle = (float)i / (float)InstanceCount * 360.f + speeds[i].x;
             float x = sin(angle) * radius + displacements[i].x;
             float y = displacements[i].y * 0.4f;
             float z = cos(angle) * radius + displacements[i].z;
@@ -375,7 +339,7 @@ void demo_instancing::RenderScene(const mat4& ProjectionMatrix, const mat4& View
 void demo_instancing::RenderQuad()
 {
     glBindVertexArray(quadVAO);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, INSTANCE);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, InstanceCount);
     glBindVertexArray(0);
 }
 

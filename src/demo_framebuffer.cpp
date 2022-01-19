@@ -111,6 +111,8 @@ in vec2 texCoords;
 uniform sampler2D screenTexture;
 uniform int uPPT;
 
+uniform mat3 uKernel;
+
 const float offset_x = 1.0f / 800.0f;
 const float offset_y = 1.0f / 800.0f;
 
@@ -126,65 +128,21 @@ vec2 offsets[9] = vec2[](
         vec2( offset_x, -offset_y)  // bottom-right    
     );
 
-float kernel1[9] = float[](
-    1.0 / 9, 1.0 / 9, 1.0 / 9,
-    1.0 / 9, 1.0 / 9, 1.0 / 9,
-    1.0 / 9, 1.0 / 9, 1.0 / 9
-    );
-float kernel2[9] = float[](
-        2,  2,  2,
-        2, -15,  2,
-        2,  2,  2
-    );
-float kernel3[9] = float[](
-        2,  2,  2,
-        2, -16,  2,
-        2,  2,  2
-    );
-float kernel4[9] = float[](
-        -2, -1,  0,
-        -1,  1,  1,
-         0,  1,  2
-    );
-
 void main()
-{
-    if (uPPT == 1)
-        FragColor = texture(screenTexture, texCoords);                                      //Normal
-    else if (uPPT == 2)
+{                              //Normal
+    if (uPPT == 2)
         FragColor = vec4(1.0f) - texture(screenTexture, texCoords);                         //Inversion
-    else if (uPPT == 3)
+    if (uPPT == 3)
     {
         FragColor = texture(screenTexture, texCoords);                                      //Grayscale
         float average = (FragColor.r + FragColor.g + FragColor.b) / 3.0f; 
         FragColor = vec4(average, average, average, 1.0f);
     }
-    else if(uPPT == 4)
+    if(uPPT == 1 || uPPT >= 4)
     {
         vec3 color = vec3(0.0f);
         for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel1[i];
-        FragColor = vec4(color, 1.0f);
-    }
-    else if(uPPT == 5)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel2[i];
-        FragColor = vec4(color, 1.0f);
-    }
-    else if(uPPT == 6)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel3[i];
-        FragColor = vec4(color, 1.0f);
-    }
-    else if(uPPT == 7)
-    {
-        vec3 color = vec3(0.0f);
-        for(int i = 0; i < 9; i++)
-            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * kernel4[i];
+            color += vec3(texture(screenTexture, texCoords.st + offsets[i])) * uKernel[i];
         FragColor = vec4(color, 1.0f);
     }
 }
@@ -323,7 +281,7 @@ void demo_framebuffer::Update(const platform_io& IO)
 
     // Set ttp uniform
     glUniform1i(glGetUniformLocation(FramebufferProgram, "uPPT"), (int)ppt + 1);
-
+    glUniformMatrix3fv(glGetUniformLocation(FramebufferProgram, "uKernel"), 9 * sizeof(float), GL_FALSE, kernelMat.e);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindVertexArray(quadVAO);
@@ -363,18 +321,43 @@ void demo_framebuffer::DisplayDebugUI()
                 break;
             case 3:
                 ppt = PostProcessType::KERNEL1;
+                kernelMat = {
+                    1.0 / 9, 1.0 / 9, 1.0 / 9,
+                    1.0 / 9, 1.0 / 9, 1.0 / 9,
+                    1.0 / 9, 1.0 / 9, 1.0 / 9
+                };
                 break;
             case 4:
                 ppt = PostProcessType::KERNEL2;
+                kernelMat = {
+                    2,  2,  2,
+                    2, -15,  2,
+                    2,  2,  2
+                };
                 break;
             case 5:
                 ppt = PostProcessType::KERNEL3;
+                kernelMat = {
+                    2,  2,  2,
+                    2, -16,  2,
+                    2,  2,  2
+                };
                 break;
             case 6:
                 ppt = PostProcessType::KERNEL4;
+                kernelMat = {
+                    -2, -1,  0,
+                    -1,  1,  1,
+                     0,  1,  2
+                };
                 break;
             default:
                 ppt = PostProcessType::NORMAL;
+                kernelMat = {
+                    0,0,0,
+                    0,1,0,
+                    0,0,0
+                };
                 break;
             }
         }

@@ -4,22 +4,14 @@
 
 #include "demo.h"
 
+#include "post_process_type.h"
 #include "opengl_headers.h"
 
 #include "camera.h"
 
 #include "tavern_scene.h"
 
-enum PostProcessType
-{
-    NORMAL,
-    INVERSION,
-    GREYSCALE,
-    KERNEL1,
-    KERNEL2,
-    KERNEL3,
-    KERNEL4
-};
+
 
 class demo_framebuffer : public demo
 {
@@ -51,6 +43,7 @@ private:
     tavern_scene TavernScene;
 
     PostProcessType ppt = PostProcessType::GREYSCALE;
+    mat3 kernelMat;
 
     bool Wireframe = false;
 };
