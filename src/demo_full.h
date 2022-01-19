@@ -9,6 +9,7 @@
 
 #include "camera.h"
 
+#include "asteroid_mesh.h"
 #include "tavern_scene.h"
 
 class demo_full : public demo
@@ -20,9 +21,14 @@ public:
 
     void RenderQuad();
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
+    void RenderAsteroids(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void DisplayDebugUI();
 
+
 private:
+    void GenInstanceMatrices();
+    void GenInstanceVBO(const std::vector<mat4>& matrices);
+
     GL::debug& GLDebug;
 
     // 3d camera
@@ -47,7 +53,7 @@ private:
     float exposure = 1.f;
 
     GLuint bloomCBO = 0;
-    GLuint blurProgram = 0;
+    GLuint BlurProgram = 0;
     bool processBloom = true;
 
     int pingpongAmount = 8;
@@ -70,10 +76,17 @@ private:
             0,0,0
     };
 
+    // Instancing Objects
+    GLuint InstancingProgram = 0;
+    asteroid_mesh asteroid;
+
+    bool processInstancing = true;
+    int instanceCount = 500;
+    float instanceCircleRadius = 15.f;
+    float instanceOffset = 5.f;
+
 
     tavern_scene TavernScene;
-
-    PostProcessType postProcessType = PostProcessType::GREYSCALE;
 
     bool Wireframe = false;
 };

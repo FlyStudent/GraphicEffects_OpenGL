@@ -111,6 +111,85 @@ void main()
 })GLSL";
 #pragma endregion
 
+#pragma region INSTANCING VS
+static const char* gInstancingVertexShaderStr = R"GLSL(
+// Attributes
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec2 aUV;
+layout(location = 2) in vec3 aNormal;
+layout(location = 3) in mat4 aInstanceMatrix;
+
+// Uniforms
+uniform mat4 uProjection;
+uniform mat4 uView;
+uniform mat4 uModelNormalMatrix;
+
+// Varyings
+out vec2 vUV;
+out vec3 vPos;    // Vertex position in view-space
+out vec3 vNormal; // Vertex normal in view-space
+
+void main()
+{
+    vUV = aUV;
+    vec4 pos4 = (aInstanceMatrix * vec4(aPosition, 1.0));
+    vPos = pos4.xyz / pos4.w;
+    vNormal = (uModelNormalMatrix * vec4(aNormal, 0.0)).xyz;
+    gl_Position = uProjection * uView * pos4;
+})GLSL";
+#pragma endregion
+
+#pragma region INSTANCING FS
+static const char* gInstancingFragmentShaderStr = R"GLSL(
+#line 145
+// Varyings
+in vec2 vUV;
+in vec3 vPos;
+in vec3 vNormal;
+
+// Uniforms
+uniform mat4 uProjection;
+uniform vec3 uViewPosition;
+
+uniform sampler2D uDiffuseTexture;
+
+// Uniform blocks
+layout(std140) uniform uLightBlock
+{
+	light uLight[LIGHT_COUNT];
+};
+
+// Shader outputs
+out vec4 oColor;
+
+light_shade_result get_lights_shading()
+{
+    light_shade_result lightResult = light_shade_result(vec3(0.0), vec3(0.0), vec3(0.0));
+	for (int i = 0; i < LIGHT_COUNT; ++i)
+    {
+        light_shade_result light = light_shade(uLight[i], gDefaultMaterial.shininess, uViewPosition, vPos, normalize(vNormal));
+        lightResult.ambient  += light.ambient;
+        lightResult.diffuse  += light.diffuse;
+        lightResult.specular += light.specular;
+    }
+    return lightResult;
+}
+
+void main()
+{
+    // Compute phong shading
+    light_shade_result lightResult = get_lights_shading();
+    
+    vec3 diffuseColor  = gDefaultMaterial.diffuse * lightResult.diffuse * texture(uDiffuseTexture, vUV).rgb;
+    vec3 ambientColor  = gDefaultMaterial.ambient * lightResult.ambient;
+    vec3 specularColor = gDefaultMaterial.specular * lightResult.specular;
+    vec3 emissiveColor = gDefaultMaterial.emission;
+    
+    // Apply light color
+    oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
+})GLSL";
+#pragma endregion
+
 #pragma region HDR VS
 static const char* gHdrVertexShaderStr = R"GLSL(
 // Attributes
@@ -250,7 +329,7 @@ void main()
 #pragma endregion
 
 demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO)
-    : GLDebug(GLDebug), TavernScene(GLCache)
+    : GLDebug(GLDebug), TavernScene(GLCache), asteroid(GLCache)
 {
     // Create shader
     {
@@ -261,12 +340,16 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
             FragmentShaderConfig,
             gFragmentShaderStr,
         };
+        const char* InstFragmentShaderStrs[2] = {
+            FragmentShaderConfig,
+            gInstancingFragmentShaderStr,
+        };
 
-        Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+        Program =               GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+        InstancingProgram =     GL::CreateProgramEx(1, &gInstancingVertexShaderStr, 2, InstFragmentShaderStrs, true);
+        PostProcessProgram =    GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
+        BlurProgram =           GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
 
-        PostProcessProgram = GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
-
-        blurProgram = GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
     }
 
     // Create a vertex array and bind attribs onto the vertex buffer
@@ -311,12 +394,16 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
 
     // Set initial uniforms
     {
-        glUseProgram(blurProgram);
-        glUniform1i(glGetUniformLocation(blurProgram, "screenTexture"), 0);
+        glUseProgram(BlurProgram);
+        glUniform1i(glGetUniformLocation(BlurProgram, "screenTexture"), 0);
 
         glUseProgram(PostProcessProgram);
         glUniform1i(glGetUniformLocation(PostProcessProgram, "uScreenBuffer"), 0);
         glUniform1i(glGetUniformLocation(PostProcessProgram, "uBloomTexture"), 1);
+
+        glUseProgram(InstancingProgram);
+        glUniform1i(glGetUniformLocation(InstancingProgram, "uDiffuseTexture"), 0);
+        glUniformBlockBinding(InstancingProgram, glGetUniformBlockIndex(InstancingProgram, "uLightBlock"), LIGHT_BLOCK_BINDING_POINT);
 
         glUseProgram(Program);
         glUniform1i(glGetUniformLocation(Program, "uDiffuseTexture"), 0);
@@ -388,6 +475,8 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         }
     }
     
+    // Instancing
+    GenInstanceMatrices();
 }
 
 demo_full::~demo_full()
@@ -420,8 +509,10 @@ void demo_full::Update(const platform_io& IO)
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
 
     // Render tavern
-    this->RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
+    RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
+    if (processInstancing)
+        RenderAsteroids(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
 #pragma endregion
 
@@ -429,11 +520,11 @@ void demo_full::Update(const platform_io& IO)
     bool horizontal = true, first_iteration = true;
     if (processBloom)
     {
-        glUseProgram(blurProgram);
+        glUseProgram(BlurProgram);
         for (int i = 0; i < pingpongAmount; i++)
         {
             glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
-            glUniform1i(glGetUniformLocation(blurProgram, "horizontal"), horizontal);
+            glUniform1i(glGetUniformLocation(BlurProgram, "horizontal"), horizontal);
 
             if (first_iteration)
             {
@@ -603,6 +694,21 @@ void demo_full::DisplayDebugUI()
 
         ImGui::Spacing();
 
+        if (ImGui::TreeNode("Instancing"))
+        {
+            ImGui::Checkbox("Activate", &processInstancing);
+
+            ImGui::Spacing();
+
+            ImGui::DragInt("Instance count", &instanceCount);
+            ImGui::DragFloat("Circle radius", &instanceCircleRadius);
+            ImGui::DragFloat("Offset", &instanceOffset);
+
+            ImGui::TreePop();
+        }
+
+        ImGui::Spacing();
+
         if (ImGui::TreeNodeEx("Camera"))
         {
             ImGui::Text("Position: (%.2f, %.2f, %.2f)", Camera.Position.x, Camera.Position.y, Camera.Position.z);
@@ -614,6 +720,95 @@ void demo_full::DisplayDebugUI()
 
         ImGui::TreePop();
     }
+}
+
+void demo_full::GenInstanceMatrices()
+{
+    static int previousCount = 0;
+    static float previousOffset = 0.f;
+    static std::vector<v2> speeds;
+    static std::vector<v2> transforms;
+    static std::vector<v3> displacements;
+
+    std::vector<mat4> modelMatrices;
+    modelMatrices.resize(instanceCount);
+
+    bool newRange = previousCount != instanceCount || previousOffset != instanceOffset;
+    previousCount = instanceCount;
+    previousOffset = instanceOffset;
+
+    if (newRange)
+    {
+        speeds.resize(instanceCount);
+        displacements.resize(instanceCount);
+        transforms.resize(instanceCount);
+    }
+
+    srand((unsigned int)ImGui::GetTime());
+
+    auto displace = [](float offset)->float { return (rand() % (int)(offset * 100.f)) / 100.f - offset;  };
+
+    for (int i = 0; i < instanceCount; i++)
+    {
+        if (newRange)
+        {
+            speeds[i] = { 0.f, (float)(rand() % 100) / 10000.f };
+            float offset = instanceOffset == 0.f ? 1.f : instanceOffset;
+            displacements[i] = { displace(offset) , displace(offset) , displace(offset) };
+            transforms[i] = { (rand() % 20) / 100.0f + 0.05f , (float)(rand() % 360) };
+        }
+
+        speeds[i].x += speeds[i].y;
+
+        mat4 model = Mat4::Identity();
+        // position
+        float angle = (float)i / (float)instanceCount * 360.f + speeds[i].x;
+        float x = sin(angle) * instanceCircleRadius + displacements[i].x;
+        float y = displacements[i].y * 0.4f;
+        float z = cos(angle) * instanceCircleRadius + displacements[i].z;
+        model = Mat4::Translate(v3{ x, y, z });
+
+        // scale
+        float scale = transforms[i].x;
+        model = model * Mat4::Scale(v3{ scale, scale, scale });
+
+        //rotation
+        float rotation = transforms[i].y;
+        model = model * Mat4::RotateX(rotation);
+
+        modelMatrices[i] = model;
+    }
+
+    GenInstanceVBO(modelMatrices);
+}
+
+void demo_full::GenInstanceVBO(const std::vector<mat4>& modelMatrices)
+{
+    glBindVertexArray(asteroid.VAO);
+
+    GLuint instanceVBO = 0;
+    glGenBuffers(1, &instanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+
+    glBufferData(GL_ARRAY_BUFFER, instanceCount * sizeof(mat4), &modelMatrices.data()[0], GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)0);
+    glVertexAttribDivisor(3, 1);
+
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(sizeof(v4)));
+    glVertexAttribDivisor(4, 1);
+
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(2 * sizeof(v4)));
+    glVertexAttribDivisor(5, 1);
+
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(3 * sizeof(v4)));
+    glVertexAttribDivisor(6, 1);
+
+    glBindVertexArray(0);
 }
 
 void demo_full::RenderQuad()
@@ -652,4 +847,27 @@ void demo_full::RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatri
     // Draw mesh
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, TavernScene.MeshVertexCount);
+}
+
+void demo_full::RenderAsteroids(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
+{
+    glEnable(GL_DEPTH_TEST);
+
+    // Use shader and configure its uniforms
+    glUseProgram(InstancingProgram);
+
+    // Set uniforms
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(InstancingProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(InstancingProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(InstancingProgram, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
+    glUniform3fv(glGetUniformLocation(InstancingProgram, "uViewPosition"), 1, Camera.Position.e);
+
+    // Bind uniform buffer and textures
+    glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_BLOCK_BINDING_POINT, TavernScene.LightsUniformBuffer);
+    glBindTexture(GL_TEXTURE_2D, asteroid.DiffuseTexture);
+
+    GenInstanceMatrices();
+
+    asteroid.Draw(instanceCount);
 }
