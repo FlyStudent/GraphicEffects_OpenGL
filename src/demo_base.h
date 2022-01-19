@@ -18,14 +18,11 @@ public:
     virtual void Update(const platform_io& IO);
 
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
+
     void DisplayDebugUI();
 
 private:
-    GL::debug& GLDebug;
 
-    GLuint VAO = 0;
-
-    bool Wireframe = false;
 
 protected:
 
@@ -40,4 +37,9 @@ protected:
     
     tavern_scene TavernScene;
 
+    GL::debug& GLDebug;
+
+    GLuint VAO = 0;
+
+    bool Wireframe = false;
 };

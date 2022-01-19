@@ -33,6 +33,7 @@ uniform highp mat4 uModelNormalMatrix;
 out vec2 vUV;
 out vec3 vPos;    // Vertex position in view-space
 out vec3 vNormal; // Vertex normal in view-space
+out int id;
 
 void main()
 {
@@ -128,6 +129,36 @@ void main()
 {    
     FragColor = texture(skybox, TexCoords);
 })GLSL";
+
+
+static const char* gVertexShaderMPStr = R"GLSL(
+// Attributes
+layout(location = 0) in vec3 aPosition;
+
+// Uniforms
+uniform mat4 uProjection;
+uniform mat4 uModel;
+uniform mat4 uView;
+
+void main()
+{
+
+    vec4 pos4 = (uModel * vec4(aPosition, 1.0));
+    gl_Position = uProjection * uView * pos4;
+})GLSL";
+
+static const char* gFragmentShaderMPStr = R"GLSL(
+
+// Varyings
+out vec4 color;
+uniform vec4 Inid;
+
+
+void main()
+{
+    color = Inid;
+})GLSL";
+
 #pragma endregion
 
 demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
@@ -143,8 +174,16 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
             gFragmentShaderStr,
         };
 
+        char FragmentShaderConfigs[] = "#define LIGHT_COUNT %d\n";
+        snprintf(FragmentShaderConfigs, ARRAY_SIZE(FragmentShaderConfigs), "#define LIGHT_COUNT %d\n", TavernScene.LightCount);
+        const char* FragmentShaderStrss[2] = {
+            FragmentShaderConfigs,
+            gFragmentShaderMPStr,
+        };
+
         this->SkyProgram = GL::CreateProgram(gVertexShaderCubeStr, gFragmentShaderCubeStr);
         this->ReflectiveProgram = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+        this->MousePickingProgram = GL::CreateProgramEx(1, &gVertexShaderMPStr, 2, FragmentShaderStrss, true);
     }
 
     // Create a vertex array and bind attribs onto the vertex buffer
@@ -305,6 +344,38 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
     GenerateCubemap(EnvironmentTexture, 128.f, 128.f, GL_RGB, GL_UNSIGNED_BYTE);
     GenerateCubemap(DepthTexture, 1024.f, 1024.f, GL_DEPTH_COMPONENT, GL_FLOAT);
 
+    vertex_descriptor Descriptor = {};
+    Descriptor.Stride = sizeof(vertex_full);
+    Descriptor.HasUV = true;
+    Descriptor.PositionOffset = OFFSETOF(vertex_full, Position);
+    Descriptor.UVOffset = OFFSETOF(vertex_full, UV);
+    Descriptor.NormalOffset = OFFSETOF(vertex_full, Normal);
+    // Create cube vertices
+    vertex_full Cube[36];
+
+    Mesh::BuildCube(Cube, Cube + 36, Descriptor);
+
+    // Upload cube to gpu (VRAM)
+
+    GLuint cube = 0;
+    glGenBuffers(1, &cube);
+    glBindBuffer(GL_ARRAY_BUFFER, cube);
+    glBufferData(GL_ARRAY_BUFFER, 36 * sizeof(vertex_full), Cube, GL_STATIC_DRAW);
+
+    // Create a vertex array
+    glGenVertexArrays(1, &CubeVAO);
+    glBindVertexArray(CubeVAO);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.PositionOffset));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.NormalOffset));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.UVOffset));
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    
     RenderEnvironmentMap({0,0,0});
 };
 
@@ -333,6 +404,51 @@ void demo_skybox::RenderSkybox(const camera& cam, const mat4& projection)
     glDepthMask(GL_TRUE);
 }
 
+void demo_skybox::MousePicking(const platform_io& IO)
+{
+    // Compute Matrixs
+    mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
+    mat4 ModelMatrix = Mat4::Translate({ 0.f,0.f,0.f });
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
+
+    int i = 0;
+
+    // Clear buffers
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), 1.f, 0.1f, 100.f);
+
+    RenderTavernEx(ProjectionMatrix, ViewMatrix, ModelMatrix, i);
+
+    mat4 model = Mat4::Translate(Position);
+    i += 1;
+    glUseProgram(MousePickingProgram);
+
+    glUniformMatrix4fv(glGetUniformLocation(MousePickingProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(MousePickingProgram, "uModel"), 1, GL_FALSE, model.e);
+    glUniformMatrix4fv(glGetUniformLocation(MousePickingProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    v3 color = Color::RGB(i);
+    glUniform4f(glGetUniformLocation(MousePickingProgram, "Inid"), color.r, color.g, color.b, 1.f);
+
+    // Draw mesh
+    glBindVertexArray(SphereVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 2880);
+
+    glFlush();
+    glFinish();
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    unsigned char data[3];
+    glReadPixels(IO.MouseX, IO.DeltaMouseY, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, data);
+    int pickedID =
+        data[0] +
+        data[1] * 256 +
+        data[2] * 256 * 256;
+
+    std::cout << pickedID << std::endl;
+}
 
 void demo_skybox::GenerateCubemap(GLuint& index, const float width,const float height, const GLint format, const GLint size)
 {
@@ -355,7 +471,7 @@ void demo_skybox::GenerateCubemap(GLuint& index, const float width,const float h
 void demo_skybox::RenderSceneWithReflection(const mat4& ProjectionMatrix, const mat4& ModelMatrix, const camera& cam)
 {
 
-    RenderScene(ProjectionMatrix, ModelMatrix, cam);
+    RenderScene(ProjectionMatrix, ModelMatrix, cam.Position, cam);
     mat4 ViewMatrix = CameraGetInverseMatrix(cam);
     mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(ModelMatrix));
 
@@ -378,7 +494,7 @@ void demo_skybox::RenderSceneWithReflection(const mat4& ProjectionMatrix, const 
 }
 
 
-void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMatrix,const v3& position, const camera& cam = {})
+void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMatrix,const v3& position, const camera& cam)
 {
     // Compute Matrixs
     mat4 ViewMatrix = CameraGetInverseMatrix(cam);
@@ -391,7 +507,7 @@ void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMat
     RenderSkybox(cam, ProjectionMatrix);
     RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
-    mat4 model = Mat4::Translate(position);
+    mat4 model = Mat4::Translate(Position);
 
     glUseProgram(Program);
 
@@ -407,6 +523,11 @@ void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMat
     // Draw mesh
     glBindVertexArray(SphereVAO);
     glDrawArrays(GL_TRIANGLES, 0, 2880);
+
+    model = CameraGetMatrixEx(Camera, {0.f, -0.75f, 0.f});
+    glUniformMatrix4fv(glGetUniformLocation(Program, "uModel"), 1, GL_FALSE, model.e);
+    glBindVertexArray(CubeVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
 //Update environment skybox 
@@ -442,7 +563,7 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
         mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
         mat4 ViewMatrixWT = CameraGetInverseMatrixWT(RenderingCamera);
 
-        RenderScene(ProjectionMatrix, ModelMatrix, RenderingCamera);
+        RenderScene(ProjectionMatrix, ModelMatrix,RenderingCamera.Position, RenderingCamera);
     }
     
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -469,7 +590,7 @@ void demo_skybox::RenderDepthMap()
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    mat4 shadowProj = Mat4::Perspective(Math::ToRadians(90.f), 1.f, 0.1f, 100.f);
+    mat4 shadowProj = Mat4::Ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 7.5f);
     RenderScene(shadowProj, Mat4::Identity(), TavernScene.Lights[0].Position.rgb);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -477,6 +598,13 @@ void demo_skybox::RenderDepthMap()
 
 void demo_skybox::Update(const platform_io& IO)
 {
+    if (IO.hasJustClicked) 
+    {
+        MousePicking(IO);
+    }
+
+
+
     // Render New Cubemap For reflection
     RenderEnvironmentMap({ 0,0,0 });
 
@@ -487,7 +615,7 @@ void demo_skybox::Update(const platform_io& IO)
 
     // Update Camera and misc
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
-    position = { -2.f, Math::Cos(IO.Time) * -5.f, 0.f };
+    Position = { -2.f, Math::Cos(IO.Time) * -5.f, 0.f };
 
     //Compute basic matrix
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
@@ -510,4 +638,24 @@ void demo_skybox::DisplayDebugUI()
 
         ImGui::TreePop();
     }
+}
+
+
+void demo_skybox::RenderTavernEx(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix, int i)
+{
+    glEnable(GL_DEPTH_TEST);
+
+    // Use shader and configure its uniforms
+    glUseProgram(MousePickingProgram);
+
+    // Set uniforms
+    glUniformMatrix4fv(glGetUniformLocation(MousePickingProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(MousePickingProgram, "uModel"), 1, GL_FALSE, ModelMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(MousePickingProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    v3 color = Color::RGB(i);
+    glUniform4f(glGetUniformLocation(MousePickingProgram, "Inid"), color.r, color.g, color.b, 1.f);
+
+    // Draw mesh
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, TavernScene.MeshVertexCount);
 }

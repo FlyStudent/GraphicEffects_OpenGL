@@ -123,6 +123,16 @@ mat4 CameraGetMatrix(const camera& Camera)
     return CameraTransform;
 }
 
+mat4 CameraGetMatrixEx(const camera& Camera, const v3& offset)
+{
+    // We know how to compute the inverse of the camera
+    mat4 CameraTransform = Mat4::Identity();
+    CameraTransform *= Mat4::Translate(Camera.Position + offset);
+    CameraTransform *= Mat4::RotateY(Camera.Yaw);
+    CameraTransform *= Mat4::RotateX(Camera.Pitch);
+    return CameraTransform;
+}
+
 mat4 CameraGetInverseMatrix(const camera& Camera)
 {
     // We know how to compute the inverse of the camera

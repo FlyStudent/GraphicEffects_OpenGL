@@ -36,5 +36,6 @@ struct camera_inputs
 camera CameraUpdateFPS(const camera& PreviousCamera, const camera_inputs& Inputs);
 camera CameraUpdateFreefly(const camera& PreviousCamera, const camera_inputs& Inputs);
 mat4 CameraGetMatrix(const camera& Camera);
+mat4 CameraGetMatrixEx(const camera& Camera, const v3& offset);
 mat4 CameraGetInverseMatrix(const camera& Camera);
 mat4 CameraGetInverseMatrixWT(const camera& Camera);

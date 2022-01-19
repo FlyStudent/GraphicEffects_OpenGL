@@ -24,6 +24,10 @@ public:
     void RenderSceneWithReflection(const mat4& ProjectionMatrix, const mat4& ModelMatrix, const camera& cam);
     void GenerateCubemap(GLuint& index, const float width, const float height, const GLint format, const GLint size);
 
+    void RenderTavernEx(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix,int i);
+
+    void MousePicking(const platform_io& IO);
+
     void RenderDepthMap();
 private:
     GL::debug& GLDebug;
@@ -48,6 +52,10 @@ private:
     GLuint EnvironmentTexture = 0;
     GLuint DepthTexture = 0;
 
-    v3 position = { 0.f,0.f,0.f };
+    GLuint MousePickingProgram = 0;
+
+    GLuint CubeVAO = 0;
+
+    v3 Position = { 0.f,0.f,0.f };
     bool Dynamic = true;
 };
