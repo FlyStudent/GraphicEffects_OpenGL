@@ -27,6 +27,12 @@ asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
     }
 }
 
+asteroid_mesh::~asteroid_mesh()
+{
+    glDeleteBuffers(1, &VAO);
+}
+
+
 void asteroid_mesh::Draw(int instance)
 {
     glBindTexture(GL_TEXTURE_2D, DiffuseTexture);

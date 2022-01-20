@@ -6,6 +6,7 @@ class asteroid_mesh
 {
 public:
     asteroid_mesh(GL::cache& GLCache);
+    ~asteroid_mesh();
 
     void Draw(int instance);
 

@@ -601,7 +601,6 @@ void demo_skybox::Update(const platform_io& IO)
     const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
-
     // Update Camera and misc
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
     Position = { -2.f, Math::Cos(IO.Time) * -5.f, 0.f };

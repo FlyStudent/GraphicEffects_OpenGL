@@ -143,6 +143,66 @@ void main()
 })GLSL";
 #pragma endregion
 
+#pragma region REFLECTION FS
+static const char* gReflectionFragmentShaderStr = R"GLSL(
+// Varyings
+in vec2 vUV;
+in vec3 vPos;
+in vec3 vNormal;
+
+// Uniforms
+uniform mat4 uProjection;
+uniform vec3 uViewPosition;
+
+uniform sampler2D uDiffuseTexture;
+uniform sampler2D uEmissiveTexture;
+
+uniform samplerCube skybox;
+
+// Uniform blocks
+layout(std140) uniform uLightBlock
+{
+	light uLight[LIGHT_COUNT];
+};
+
+// Shader outputs
+out vec4 oColor;
+
+light_shade_result get_lights_shading()
+{
+    light_shade_result lightResult = light_shade_result(vec3(0.0), vec3(0.0), vec3(0.0));
+	for (int i = 0; i < LIGHT_COUNT; ++i)
+    {
+        light_shade_result light = light_shade(uLight[i], gDefaultMaterial.shininess, uViewPosition, vPos, normalize(vNormal));
+        lightResult.ambient  += light.ambient;
+        lightResult.diffuse  += light.diffuse;
+        lightResult.specular += light.specular;
+    }
+    return lightResult;
+}
+
+void main()
+{
+    // Compute phong shading
+    light_shade_result lightResult = get_lights_shading();
+    
+    vec3 diffuseColor  = gDefaultMaterial.diffuse * lightResult.diffuse * texture(uDiffuseTexture, vUV).rgb;
+    vec3 ambientColor  = gDefaultMaterial.ambient * lightResult.ambient;
+    vec3 specularColor = gDefaultMaterial.specular * lightResult.specular;
+    vec3 emissiveColor = gDefaultMaterial.emission + texture(uEmissiveTexture, vUV).rgb;
+    
+    // Apply light color
+    oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
+
+    vec3 I = normalize(vPos - uViewPosition);
+    vec3 R = reflect(I, normalize(vNormal));
+    float ratio = 1.00/1.52;
+    //R = refract(I, normalize(vNormal), ratio);
+
+    oColor = vec4(texture(skybox, R).rgb, 1.0);
+})GLSL";
+#pragma endregion
+
 #pragma region INSTANCING VS
 static const char* gInstancingVertexShaderStr = R"GLSL(
 // Attributes
@@ -363,6 +423,8 @@ void main()
 demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& IO)
     : GLDebug(GLDebug), TavernScene(GLCache), asteroid(GLCache)
 {
+    AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
+
     // Create shader
     {
         // Assemble fragment shader strings (defines + code)
@@ -376,9 +438,14 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
             FragmentShaderConfig,
             gInstancingFragmentShaderStr,
         };
+        const char* ReflectFragmentShaderStrs[2] = {
+            FragmentShaderConfig,
+            gReflectionFragmentShaderStr,
+        };
 
         Program =               GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
         SkyProgram =            GL::CreateProgram(gVertexShaderCubeStr, gFragmentShaderCubeStr, false);
+        ReflectiveProgram =     GL::CreateProgramEx(1, &gVertexShaderStr, 2, ReflectFragmentShaderStrs, true);
         InstancingProgram =     GL::CreateProgramEx(1, &gInstancingVertexShaderStr, 2, InstFragmentShaderStrs, true);
         PostProcessProgram =    GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
         BlurProgram =           GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
@@ -423,6 +490,25 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+
+    // Create sphere vertex array
+    {
+        int VertexMeshCount = 0;
+        vertex_descriptor sphere;
+        GLuint buffer = GLCache.LoadObj("media/sphere.obj", 1.f, &VertexMeshCount, &sphere);
+
+        glGenVertexArrays(1, &SphereVAO);
+        glBindVertexArray(SphereVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sphere.Stride, (void*)(size_t)sphere.PositionOffset);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sphere.Stride, (void*)(size_t)sphere.UVOffset);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sphere.Stride, (void*)(size_t)sphere.NormalOffset);
     }
 
     // Create a cube vertex object for Skybox
@@ -472,6 +558,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
              1.0f, -1.0f,  1.0f
         };
 
+        GLuint SkyBuffer = 0;
         glGenVertexArrays(1, &SkyVAO);
         glGenBuffers(1, &SkyBuffer);
 
@@ -522,40 +609,6 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
         GenCubemap(EnvironmentTexture, 128.f, 128.f, GL_RGB, GL_UNSIGNED_BYTE);
-        GenCubemap(DepthTexture, 1024.f, 1024.f, GL_DEPTH_COMPONENT, GL_FLOAT);
-
-    }
-
-    // Create cube vertices
-    {
-        vertex_descriptor Descriptor = {};
-        Descriptor.Stride = sizeof(vertex_full);
-        Descriptor.HasUV = true;
-        Descriptor.PositionOffset = OFFSETOF(vertex_full, Position);
-        Descriptor.UVOffset = OFFSETOF(vertex_full, UV);
-        Descriptor.NormalOffset = OFFSETOF(vertex_full, Normal);
-        vertex_full Cube[36];
-
-        Mesh::BuildCube(Cube, Cube + 36, Descriptor);
-
-        GLuint cube = 0;
-        glGenBuffers(1, &cube);
-        glBindBuffer(GL_ARRAY_BUFFER, cube);
-        glBufferData(GL_ARRAY_BUFFER, 36 * sizeof(vertex_full), Cube, GL_STATIC_DRAW);
-
-        // Create a vertex array
-        glGenVertexArrays(1, &CubeVAO);
-        glBindVertexArray(CubeVAO);
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.PositionOffset));
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.NormalOffset));
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.UVOffset));
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
     }
 
     // Set initial uniforms
@@ -643,7 +696,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
     
     // Instancing
     GenInstanceMatrices();
-    //RenderEnvironmentMap();
+    RenderEnvironmentMap();
 }
 
 demo_full::~demo_full()
@@ -651,21 +704,26 @@ demo_full::~demo_full()
     // Cleanup GL
     glDeleteVertexArrays(1, &VAO);
     glDeleteVertexArrays(1, &quadVAO);
+    glDeleteVertexArrays(1, &SphereVAO);
     glDeleteProgram(Program);
+    glDeleteProgram(ReflectiveProgram);
+    glDeleteProgram(SkyProgram);
     glDeleteProgram(PostProcessProgram);
 }
 
 void demo_full::Update(const platform_io& IO)
 {
     AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
-    glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
 
 #pragma region Draw scene in FBO
 
+    RenderEnvironmentMap();
+
+    glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
+
     RenderScene(Camera);
-    //RenderEnvironmentMap();
 
 #pragma endregion
 
@@ -739,6 +797,15 @@ void demo_full::DisplayDebugUI()
 
     if (ImGui::TreeNodeEx("demo_full", ImGuiTreeNodeFlags_Framed))
     {
+        if (ImGui::TreeNode("Reflection"))
+        {
+            ImGui::Checkbox("Dynamic", &Dynamic);
+
+            ImGui::TreePop();
+        }
+
+        ImGui::Spacing();
+
         if (ImGui::TreeNode("Post process"))
         {
             ImGui::Checkbox("Grey scale", &processGreyScale);
@@ -998,22 +1065,17 @@ void demo_full::RenderEnvironmentMap()
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, EnvironmentTexture, 0);
         // switch between the 6 faces of the cubemap
         RenderingCamera.SetFace(i);
-
-        //render the scene in the fbo
-        mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(-90.f), 1.f, 0.1f, 100.f);
-        mat4 ViewMatrix = CameraGetInverseMatrix(RenderingCamera);
-        mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
-        mat4 ViewMatrixWT = CameraGetInverseMatrixWT(RenderingCamera);
-
-        RenderScene(RenderingCamera);
+        RenderScene(RenderingCamera, false);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void demo_full::RenderScene(const camera& cam)
+void demo_full::RenderScene(const camera& cam, bool reflection)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    // Bind only if called with reflection
+    if (reflection)
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
     // Clear screen
     glClearColor(0.f, 0.f, 0.f, 1.f);
@@ -1029,6 +1091,9 @@ void demo_full::RenderScene(const camera& cam)
 
     if (processInstancing)
         RenderAsteroids(ProjectionMatrix, ViewMatrix, ModelMatrix);
+
+    if (reflection)
+        RenderReflectiveSphere(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
     // Render tavern wireframe
     if (Wireframe)
@@ -1114,4 +1179,26 @@ void demo_full::RenderAsteroids(const mat4& ProjectionMatrix, const mat4& ViewMa
     GenInstanceMatrices();
 
     asteroid.Draw(instanceCount);
+}
+
+void demo_full::RenderReflectiveSphere(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix)
+{
+    glUseProgram(ReflectiveProgram);
+
+    // Render Sphere
+    mat4 model = Mat4::Translate({ -4.f, 0.f, 0.f }) * Mat4::Scale({1.5f, 1.5f, 1.5f});
+    mat4 NormalMatrix = Mat4::Transpose(Mat4::Inverse(model));
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uProjection"), 1, GL_FALSE, ProjectionMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModel"), 1, GL_FALSE, model.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uView"), 1, GL_FALSE, ViewMatrix.e);
+    glUniformMatrix4fv(glGetUniformLocation(ReflectiveProgram, "uModelNormalMatrix"), 1, GL_FALSE, NormalMatrix.e);
+    glUniform3fv(glGetUniformLocation(ReflectiveProgram, "uViewPosition"), 1, Camera.Position.e);
+
+    glBindVertexArray(SphereVAO);
+    if (Dynamic)
+        glBindTexture(GL_TEXTURE_CUBE_MAP, EnvironmentTexture);
+    else
+        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+
+    glDrawArrays(GL_TRIANGLES, 0, 2880);
 }

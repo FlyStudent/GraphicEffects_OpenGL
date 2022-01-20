@@ -22,7 +22,8 @@ public:
     void RenderQuad();
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void RenderAsteroids(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
-    void RenderScene(const camera& cam = {});
+    void RenderReflectiveSphere(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
+    void RenderScene(const camera& cam = {}, bool reflection = true);
     void RenderSkybox(const camera& cam, const mat4& projection);
     void RenderEnvironmentMap();
     void DisplayDebugUI();
@@ -44,6 +45,7 @@ private:
     GLuint Program = 0;
     GLuint VAO = 0;
     GLuint quadVAO = 0;
+    GLuint SphereVAO = 0;
 
     GLuint FBO = 0;
     GLuint RBO = 0;
@@ -54,15 +56,14 @@ private:
     // Skybox
     GLuint SkyProgram = 0;
     GLuint SkyVAO = 0;
-    GLuint SkyBuffer = 0;
+    GLuint SkyTexture = 0;
+
+    GLuint ReflectiveProgram = 0;
+    GLuint EnvironmentTexture = 0;
+    bool Dynamic = true;
+
 
     // HDR objects
-    GLuint PostProcessProgram = 0;
-    GLuint SkyTexture = 0;
-    GLuint EnvironmentTexture = 0;
-    GLuint DepthTexture = 0;
-    GLuint CubeVAO = 0;
-
 
     bool processHdr = true;
     bool processGamma = true;
@@ -80,6 +81,8 @@ private:
     float brightnessClamp = 0.5f;
 
     // Post process Objects
+    GLuint PostProcessProgram = 0;
+
     bool processGreyScale = false;
     bool processInverse = false;
     bool processKernel = false;
