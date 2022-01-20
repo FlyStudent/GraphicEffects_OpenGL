@@ -367,6 +367,15 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    glGenFramebuffers(1, &SkyFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, SkyFBO);
+
+    GLuint depth = 0;
+    glGenRenderbuffers(1, &depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
     
     RenderEnvironmentMap({0,0,0});
 };
@@ -376,6 +385,8 @@ demo_skybox::~demo_skybox()
     // Cleanup GL
     glDeleteVertexArrays(1, &VAO);
     glDeleteVertexArrays(1, &SkyVAO);
+    glDeleteVertexArrays(1, &CubeVAO);
+    glDeleteVertexArrays(1, &SphereVAO);
     glDeleteProgram(Program);
     glDeleteProgram(ReflectiveProgram);
     glDeleteProgram(SkyProgram);
@@ -532,16 +543,8 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
 
     // generate empty cubemap 
     // generate an FBO 
-    GLuint fbo = 0;
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, SkyFBO);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
-
-    GLuint depth = 0;
-    glGenRenderbuffers(1, &depth);
-    glBindRenderbuffer(GL_RENDERBUFFER, depth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
     
     glViewport(0, 0, 128, 128);
     // render the scene then push the fbo in

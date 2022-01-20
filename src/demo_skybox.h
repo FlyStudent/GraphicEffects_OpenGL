@@ -40,6 +40,7 @@ private:
     GLuint SkyProgram = 0;
     GLuint SkyVAO = 0;
     GLuint SkyBuffer = 0;
+    GLuint SkyFBO = 0;
 
     void RenderSkybox(const camera& cam, const mat4& projection);
 

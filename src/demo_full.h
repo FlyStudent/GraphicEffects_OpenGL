@@ -54,6 +54,7 @@ private:
     float AspectRatio = 0.f;
 
     // Skybox
+    GLuint SkyFBO = 0;
     GLuint SkyProgram = 0;
     GLuint SkyVAO = 0;
     GLuint SkyTexture = 0;
@@ -76,8 +77,8 @@ private:
     bool processBloom = true;
 
     int pingpongAmount = 8;
-    unsigned int pingpongFBO[2];
-    unsigned int pingpongCBO[2];
+    GLuint pingpongFBO[2];
+    GLuint pingpongCBO[2];
     float brightnessClamp = 0.5f;
 
     // Post process Objects
