@@ -22,10 +22,14 @@ public:
     void RenderQuad();
     void RenderTavern(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
     void RenderAsteroids(const mat4& ProjectionMatrix, const mat4& ViewMatrix, const mat4& ModelMatrix);
+    void RenderScene(const camera& cam = {});
+    void RenderSkybox(const camera& cam, const mat4& projection);
+    void RenderEnvironmentMap();
     void DisplayDebugUI();
 
 
 private:
+    void GenCubemap(GLuint& index, const float width, const float height, const GLint format, const GLint size);
     void GenInstanceMatrices();
     void GenInstanceVBO(const std::vector<mat4>& matrices);
 
@@ -33,6 +37,8 @@ private:
 
     // 3d camera
     camera Camera = {};
+    // rendering camera
+    camera RenderingCamera = {};
 
     // GL objects needed by this demo
     GLuint Program = 0;
@@ -43,8 +49,20 @@ private:
     GLuint RBO = 0;
     GLuint CBO = 0;
 
+    float AspectRatio = 0.f;
+
+    // Skybox
+    GLuint SkyProgram = 0;
+    GLuint SkyVAO = 0;
+    GLuint SkyBuffer = 0;
+
     // HDR objects
     GLuint PostProcessProgram = 0;
+    GLuint SkyTexture = 0;
+    GLuint EnvironmentTexture = 0;
+    GLuint DepthTexture = 0;
+    GLuint CubeVAO = 0;
+
 
     bool processHdr = true;
     bool processGamma = true;

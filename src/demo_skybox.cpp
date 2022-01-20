@@ -279,7 +279,6 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void*)0);
         glBindVertexArray(0);
-
     }
 
     // Set uniforms that won't change
@@ -394,7 +393,9 @@ void demo_skybox::RenderSkybox(const camera& cam, const mat4& projection)
     glBindVertexArray(SkyVAO);
     glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
     glDrawArrays(GL_TRIANGLES, 0, 36);
+    
     glDepthMask(GL_TRUE);
+    glUseProgram(0);
 }
 
 void demo_skybox::MousePicking(const platform_io& IO)
@@ -486,7 +487,6 @@ void demo_skybox::RenderSceneWithReflection(const mat4& ProjectionMatrix, const 
 
 }
 
-
 void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMatrix,const v3& position, const camera& cam)
 {
     // Compute Matrixs
@@ -523,9 +523,10 @@ void demo_skybox::RenderScene(const mat4& ProjectionMatrix, const mat4& ModelMat
     glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
-//Update environment skybox 
 void demo_skybox::RenderEnvironmentMap(const v3& center) 
+    //Update environment skybox 
 {
+
     // Set center of rendering
     RenderingCamera.Position = center;
 
@@ -560,9 +561,6 @@ void demo_skybox::RenderEnvironmentMap(const v3& center)
     }
     
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    /*glDeleteRenderbuffers(1, &depth);
-    glDeleteFramebuffers(1, &fbo);
-    */
 }
 
 void demo_skybox::RenderDepthMap() 
@@ -596,8 +594,6 @@ void demo_skybox::Update(const platform_io& IO)
         MousePicking(IO);
     }
 
-
-
     // Render New Cubemap For reflection
     RenderEnvironmentMap({ 0,0,0 });
 
@@ -613,7 +609,6 @@ void demo_skybox::Update(const platform_io& IO)
     //Compute basic matrix
     mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
-
 
     RenderSceneWithReflection(ProjectionMatrix, ModelMatrix, Camera);
     

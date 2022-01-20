@@ -4,6 +4,8 @@
 
 #include <imgui.h>
 
+#include "stb_image.h"
+
 #include "opengl_helpers.h"
 #include "opengl_helpers_wireframe.h"
 
@@ -108,6 +110,36 @@ void main()
         BloomoColor = vec4(oColor.rgb, 1.0);
     else
        BloomoColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+})GLSL";
+#pragma endregion
+
+#pragma region CUBE VS
+static const char* gVertexShaderCubeStr = R"GLSL(
+layout (location = 0) in vec3 aPos;
+
+out vec3 TexCoords;
+
+uniform mat4 projection;
+uniform mat4 view;
+
+void main()
+{
+    TexCoords = aPos;
+    gl_Position = projection * view * vec4(aPos, 1.0);
+}  )GLSL";
+#pragma endregion
+
+#pragma region CUBE FS
+static const char* gFragmentShaderCubeStr = R"GLSL(
+out vec4 FragColor;
+
+in vec3 TexCoords;
+
+uniform samplerCube skybox;
+
+void main()
+{    
+    FragColor = texture(skybox, TexCoords);
 })GLSL";
 #pragma endregion
 
@@ -346,6 +378,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         };
 
         Program =               GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
+        SkyProgram =            GL::CreateProgram(gVertexShaderCubeStr, gFragmentShaderCubeStr, false);
         InstancingProgram =     GL::CreateProgramEx(1, &gInstancingVertexShaderStr, 2, InstFragmentShaderStrs, true);
         PostProcessProgram =    GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
         BlurProgram =           GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
@@ -390,6 +423,139 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+
+    // Create a cube vertex object for Skybox
+    {
+        float skyboxVertices[] = {
+            // positions          
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+            -1.0f, -1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+             1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+            -1.0f,  1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+             1.0f,  1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f, -1.0f,
+
+            -1.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f
+        };
+
+        glGenVertexArrays(1, &SkyVAO);
+        glGenBuffers(1, &SkyBuffer);
+
+        glBindVertexArray(SkyVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, SkyBuffer);
+
+        glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices[0], GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void*)0);
+        glBindVertexArray(0);
+    }
+
+    // Generate skybox
+    {
+        std::vector<std::string> faces
+        {
+            "media/right.jpg",
+            "media/left.jpg",
+            "media/top.jpg",
+            "media/bottom.jpg",
+            "media/front.jpg",
+            "media/back.jpg"
+        };
+
+        glGenTextures(1, &SkyTexture);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+
+        int width, height, nrChannels;
+        unsigned char* data;
+        for (unsigned int i = 0; i < faces.size(); i++)
+        {
+            unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+            if (data)
+            {
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                    0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
+                );
+            }
+            stbi_image_free(data);
+
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        }
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+        GenCubemap(EnvironmentTexture, 128.f, 128.f, GL_RGB, GL_UNSIGNED_BYTE);
+        GenCubemap(DepthTexture, 1024.f, 1024.f, GL_DEPTH_COMPONENT, GL_FLOAT);
+
+    }
+
+    // Create cube vertices
+    {
+        vertex_descriptor Descriptor = {};
+        Descriptor.Stride = sizeof(vertex_full);
+        Descriptor.HasUV = true;
+        Descriptor.PositionOffset = OFFSETOF(vertex_full, Position);
+        Descriptor.UVOffset = OFFSETOF(vertex_full, UV);
+        Descriptor.NormalOffset = OFFSETOF(vertex_full, Normal);
+        vertex_full Cube[36];
+
+        Mesh::BuildCube(Cube, Cube + 36, Descriptor);
+
+        GLuint cube = 0;
+        glGenBuffers(1, &cube);
+        glBindBuffer(GL_ARRAY_BUFFER, cube);
+        glBufferData(GL_ARRAY_BUFFER, 36 * sizeof(vertex_full), Cube, GL_STATIC_DRAW);
+
+        // Create a vertex array
+        glGenVertexArrays(1, &CubeVAO);
+        glBindVertexArray(CubeVAO);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.PositionOffset));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.NormalOffset));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_full), (void*)(Descriptor.UVOffset));
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
     }
 
     // Set initial uniforms
@@ -477,6 +643,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
     
     // Instancing
     GenInstanceMatrices();
+    //RenderEnvironmentMap();
 }
 
 demo_full::~demo_full()
@@ -490,29 +657,15 @@ demo_full::~demo_full()
 
 void demo_full::Update(const platform_io& IO)
 {
-    const float AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
+    AspectRatio = (float)IO.WindowWidth / (float)IO.WindowHeight;
     glViewport(0, 0, IO.WindowWidth, IO.WindowHeight);
 
     Camera = CameraUpdateFreefly(Camera, IO.CameraInputs);
 
 #pragma region Draw scene in FBO
 
-    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-
-    // Clear screen
-    glClearColor(0.f, 0.f, 0.f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-
-    mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
-    mat4 ViewMatrix = CameraGetInverseMatrix(Camera);
-    mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
-
-    // Render tavern
-    RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
-
-    if (processInstancing)
-        RenderAsteroids(ProjectionMatrix, ViewMatrix, ModelMatrix);
+    RenderScene(Camera);
+    //RenderEnvironmentMap();
 
 #pragma endregion
 
@@ -575,12 +728,6 @@ void demo_full::Update(const platform_io& IO)
 
 #pragma endregion
 
-    // Render tavern wireframe
-    if (Wireframe)
-    {
-        GLDebug.Wireframe.BindBuffer(TavernScene.MeshBuffer, TavernScene.MeshDesc.Stride, TavernScene.MeshDesc.PositionOffset, TavernScene.MeshVertexCount);
-        GLDebug.Wireframe.DrawArray(0, TavernScene.MeshVertexCount, ProjectionMatrix * ViewMatrix * ModelMatrix);
-    }
     // Display debug UI
     this->DisplayDebugUI();
 }
@@ -722,6 +869,24 @@ void demo_full::DisplayDebugUI()
     }
 }
 
+void demo_full::GenCubemap(GLuint& index, const float width, const float height, const GLint format, const GLint size)
+{
+    glGenTextures(1, &index);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, index);
+
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, size, NULL);
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    }
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
 void demo_full::GenInstanceMatrices()
 {
     static int previousCount = 0;
@@ -808,6 +973,85 @@ void demo_full::GenInstanceVBO(const std::vector<mat4>& modelMatrices)
     glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*)(3 * sizeof(v4)));
     glVertexAttribDivisor(6, 1);
 
+    glBindVertexArray(0);
+}
+
+void demo_full::RenderEnvironmentMap()
+//Update environment skybox 
+{
+    // generate an FBO 
+    GLuint fbo = 0;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+    GLuint depth = 0;
+    glGenRenderbuffers(1, &depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
+
+    glViewport(0, 0, 128, 128);
+    // render the scene then push the fbo in
+    for (int i = 0; i < 6; i++)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, EnvironmentTexture, 0);
+        // switch between the 6 faces of the cubemap
+        RenderingCamera.SetFace(i);
+
+        //render the scene in the fbo
+        mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(-90.f), 1.f, 0.1f, 100.f);
+        mat4 ViewMatrix = CameraGetInverseMatrix(RenderingCamera);
+        mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
+        mat4 ViewMatrixWT = CameraGetInverseMatrixWT(RenderingCamera);
+
+        RenderScene(RenderingCamera);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void demo_full::RenderScene(const camera& cam)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
+    // Clear screen
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
+    mat4 ViewMatrix = CameraGetInverseMatrix(cam);
+    mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
+
+    RenderSkybox(cam, ProjectionMatrix);
+    RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
+
+    if (processInstancing)
+        RenderAsteroids(ProjectionMatrix, ViewMatrix, ModelMatrix);
+
+    // Render tavern wireframe
+    if (Wireframe)
+    {
+        GLDebug.Wireframe.BindBuffer(TavernScene.MeshBuffer, TavernScene.MeshDesc.Stride, TavernScene.MeshDesc.PositionOffset, TavernScene.MeshVertexCount);
+        GLDebug.Wireframe.DrawArray(0, TavernScene.MeshVertexCount, ProjectionMatrix * ViewMatrix * ModelMatrix);
+    }
+}
+
+void demo_full::RenderSkybox(const camera& cam, const mat4& projection)
+{
+    glDepthMask(GL_FALSE);
+    glUseProgram(SkyProgram);
+    mat4 ViewMatrixWT = CameraGetInverseMatrixWT(cam);
+
+    glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "projection"), 1, GL_FALSE, projection.e);
+    glUniformMatrix4fv(glGetUniformLocation(SkyProgram, "view"), 1, GL_FALSE, ViewMatrixWT.e);
+
+    glBindVertexArray(SkyVAO);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    glDepthMask(GL_TRUE);
     glBindVertexArray(0);
 }
 
