@@ -174,7 +174,7 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
         GL::light firstLight = {};
         firstLight.Enabled = true;
         firstLight.Position = { -3.0f, 0.0f, -1.5f, 1.f };
-        firstLight.Ambient = { 0.2f, 0.2f, 0.2f };
+        firstLight.Ambient = { 0.f, 0.f, 0.f };
         firstLight.Diffuse = { 1.0f, 1.0f, 1.0f };
         firstLight.Specular = { 0.0f, 0.0f, 0.0f };
         firstLight.Attenuation = { 1.0f, 0.0f, 0.0f };

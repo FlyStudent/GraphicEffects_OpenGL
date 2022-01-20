@@ -74,7 +74,7 @@ private:
 
     GLuint bloomCBO = 0;
     GLuint BlurProgram = 0;
-    bool processBloom = true;
+    bool processBloom = false;
 
     int pingpongAmount = 8;
     GLuint pingpongFBO[2];
