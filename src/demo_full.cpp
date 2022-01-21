@@ -77,7 +77,7 @@ layout(std140) uniform uLightBlock
 // Shader outputs
 //out vec4 oColor;
 layout (location = 0) out vec4 oColor;
-layout (location = 1) out vec4 BloomoColor;
+layout (location = 1) out vec4 oBloomColor;
 
 light_shade_result get_lights_shading()
 {
@@ -107,9 +107,9 @@ void main()
     
     float brightness = dot(oColor.rgb, vec3(0.2126, 0.7152, 0.0722));
     if(brightness > uBrightness)
-        BloomoColor = vec4(oColor.rgb, 1.0);
+        oBloomColor = vec4(oColor.rgb, 1.0);
     else
-       BloomoColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+       oBloomColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 })GLSL";
 #pragma endregion
 
@@ -131,7 +131,8 @@ void main()
 
 #pragma region CUBE FS
 static const char* gFragmentShaderCubeStr = R"GLSL(
-out vec4 FragColor;
+layout (location = 0) out vec4 oColor;
+layout (location = 1) out vec4 oBloomColor;
 
 in vec3 TexCoords;
 
@@ -139,7 +140,8 @@ uniform samplerCube skybox;
 
 void main()
 {    
-    FragColor = texture(skybox, TexCoords);
+    oColor = texture(skybox, TexCoords);
+    oBloomColor = vec4(0.0, 0.0, 0.0, 1.0);
 })GLSL";
 #pragma endregion
 
@@ -166,7 +168,8 @@ layout(std140) uniform uLightBlock
 };
 
 // Shader outputs
-out vec4 oColor;
+layout (location = 0) out vec4 oColor;
+layout (location = 1) out vec4 oBloomColor;
 
 light_shade_result get_lights_shading()
 {
@@ -200,6 +203,7 @@ void main()
     //R = refract(I, normalize(vNormal), ratio);
 
     oColor = vec4(texture(skybox, R).rgb, 1.0);
+    oBloomColor = vec4(0.0, 0.0, 0.0, 1.0);
 })GLSL";
 #pragma endregion
 
@@ -252,7 +256,8 @@ layout(std140) uniform uLightBlock
 };
 
 // Shader outputs
-out vec4 oColor;
+layout (location = 0) out vec4 oColor;
+layout (location = 1) out vec4 oBloomColor;
 
 light_shade_result get_lights_shading()
 {
@@ -279,6 +284,7 @@ void main()
     
     // Apply light color
     oColor = vec4((ambientColor + diffuseColor + specularColor + emissiveColor), 1.0);
+    oBloomColor = vec4(0.0, 0.0, 0.0, 1.0);
 })GLSL";
 #pragma endregion
 
@@ -640,7 +646,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glUniform1i(glGetUniformLocation(BlurProgram, "screenTexture"), 0);
 
         glUseProgram(PostProcessProgram);
-        glUniform1i(glGetUniformLocation(HdrProgram, "uScreenTexture"), 0);
+        glUniform1i(glGetUniformLocation(PostProcessProgram, "uScreenTexture"), 0);
 
         glUseProgram(HdrProgram);
         glUniform1i(glGetUniformLocation(HdrProgram, "uScreenTexture"), 0);
@@ -872,8 +878,9 @@ void demo_full::DisplayDebugUI()
 
     if (ImGui::TreeNodeEx("demo_full", ImGuiTreeNodeFlags_Framed))
     {
-        if (ImGui::TreeNode("Reflection"))
+        if (ImGui::TreeNode("Skybox and Reflection"))
         {
+            ImGui::Checkbox("Skybox", &Skybox);
             ImGui::Checkbox("Dynamic", &Dynamic);
 
             ImGui::TreePop();
@@ -1152,11 +1159,11 @@ void demo_full::RenderScene(const camera& cam, bool reflection)
     mat4 ProjectionMatrix = reflection ?    Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f) :
                                             Mat4::Perspective(Math::ToRadians(-90.f), 1.f, 0.1f, 100.f);
 
-
     mat4 ViewMatrix = CameraGetInverseMatrix(cam);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
 
-    RenderSkybox(cam, ProjectionMatrix);
+    if (Skybox)
+        RenderSkybox(cam, ProjectionMatrix);
     RenderTavern(ProjectionMatrix, ViewMatrix, ModelMatrix);
 
     if (processInstancing)

@@ -63,6 +63,7 @@ private:
 
     GLuint ReflectiveProgram = 0;
     GLuint EnvironmentTexture = 0;
+    bool Skybox = true;
     bool Dynamic = true;
 
 
@@ -77,7 +78,7 @@ private:
 
     GLuint bloomCBO = 0;
     GLuint BlurProgram = 0;
-    bool processBloom = false;
+    bool processBloom = true;
 
     int pingpongAmount = 8;
     GLuint pingpongFBO[2];
