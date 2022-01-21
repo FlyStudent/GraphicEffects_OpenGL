@@ -383,11 +383,9 @@ demo_skybox::demo_skybox(GL::cache& GLCache, GL::debug& GLDebug)
 demo_skybox::~demo_skybox()
 {
     // Cleanup GL
-    glDeleteVertexArrays(1, &VAO);
     glDeleteVertexArrays(1, &SkyVAO);
     glDeleteVertexArrays(1, &CubeVAO);
     glDeleteVertexArrays(1, &SphereVAO);
-    glDeleteProgram(Program);
     glDeleteProgram(ReflectiveProgram);
     glDeleteProgram(SkyProgram);
 }

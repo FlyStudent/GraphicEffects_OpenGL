@@ -122,6 +122,19 @@ bag_object::bag_object(GL::cache& GLCache)
     {
         // Use vbo from GLCache
         MeshBuffer = GLCache.LoadObj("media/bag/bag.obj", 1.f, &this->MeshVertexCount, &MeshDesc);
+        glGenVertexArrays(1, &MeshArrayObject);
+        glBindVertexArray(MeshArrayObject);
+
+        glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.PositionOffset);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.UVOffset);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.NormalOffset);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, MeshDesc.Stride, (void*)(size_t)MeshDesc.TangentOffset);
     }
 
     // Gen texture
@@ -130,6 +143,11 @@ bag_object::bag_object(GL::cache& GLCache)
         //SDiffuseTexture = GLCache.LoadTexture("media/fantasy_game_inn_diffuse.png", IMG_FLIP | IMG_GEN_MIPMAPS, (int*)nullptr, (int*)nullptr, true);
         NormalTexture = GLCache.LoadTexture("media/bag/bag_normal.png", IMG_FLIP | IMG_GEN_MIPMAPS);
     }
+}
+
+bag_object::~bag_object()
+{
+    glDeleteBuffers(1, &MeshArrayObject);
 }
 
 
@@ -149,24 +167,6 @@ demo_normalmapping::demo_normalmapping(GL::cache& GLCache, GL::debug& GLDebug)
         };
 
         this->Program = GL::CreateProgramEx(1, &gVertexShaderStr, 2, FragmentShaderStrs, true);
-    }
-
-    // Create bag object
-    {
-        glGenVertexArrays(1, &BagObject.MeshArrayObject);
-        glBindVertexArray(BagObject.MeshArrayObject);
-
-        glBindBuffer(GL_ARRAY_BUFFER, BagObject.MeshBuffer);
-
-        vertex_descriptor& Desc = BagObject.MeshDesc;
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.PositionOffset);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.UVOffset);
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.NormalOffset);
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, Desc.Stride, (void*)(size_t)Desc.TangentOffset);
     }
 
     // (Default light, standard values)

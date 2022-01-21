@@ -26,4 +26,3 @@ Les suivantes sont une séparation des effets réalisés.
 - Les instances _(météorites)_ reçoivent toute la même lumière.  
 - L'ambiante des lumières agis étrangement. Si une scène semble trop blanchie, c'est qu'il faut éteindre la couleur ambiante des lumières.  
 - L'HDR et le Post process avec une matrice Kernel ne sont pas compatibles. C'est soit l'un soit l'autre.  
-- Il peut y avoir une erreur dans la fenêtre de commande lors de la fermeture du programme. Le problème est lié à la scène de la skybox, mais impossible de déterminer la source.

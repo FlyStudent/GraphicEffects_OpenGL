@@ -348,6 +348,9 @@ demo_hdr::~demo_hdr()
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteProgram(Program);
     glDeleteProgram(hdrProgram);
+    glDeleteProgram(blurProgram);
+    glDeleteFramebuffers(2, pingpongFBO);
+    glDeleteFramebuffers(1, &FBO);
 }
 
 void demo_hdr::Update(const platform_io& IO)

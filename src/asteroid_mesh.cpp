@@ -30,6 +30,7 @@ asteroid_mesh::asteroid_mesh(GL::cache& GLCache)
 asteroid_mesh::~asteroid_mesh()
 {
     glDeleteBuffers(1, &VAO);
+    glDeleteBuffers(1, &VBO);
 }
 
 

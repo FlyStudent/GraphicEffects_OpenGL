@@ -32,8 +32,6 @@ public:
 private:
     GL::debug& GLDebug;
 
-    GLuint VAO = 0;
-
     GLuint SphereVAO = 0;
     GLuint SphereBuffer = 0;
 

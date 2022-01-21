@@ -588,7 +588,7 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glBindTexture(GL_TEXTURE_CUBE_MAP, SkyTexture);
 
         int width, height, nrChannels;
-        unsigned char* data;
+        unsigned char* data = nullptr;
         for (unsigned int i = 0; i < faces.size(); i++)
         {
             unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
@@ -715,6 +715,7 @@ demo_full::~demo_full()
     glDeleteVertexArrays(1, &VAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteVertexArrays(1, &SphereVAO);
+    glDeleteVertexArrays(1, &SkyVAO);
     glDeleteProgram(Program);
     glDeleteProgram(ReflectiveProgram);
     glDeleteProgram(SkyProgram);
@@ -838,9 +839,9 @@ void demo_full::DisplayDebugUI()
                     {
                     case 1:
                         kernelMat = {
-                            1.0 / 9, 1.0 / 9, 1.0 / 9,
-                            1.0 / 9, 1.0 / 9, 1.0 / 9,
-                            1.0 / 9, 1.0 / 9, 1.0 / 9
+                            1 / 9, 1 / 9, 1 / 9,
+                            1 / 9, 1 / 9, 1 / 9,
+                            1 / 9, 1 / 9, 1 / 9
                         };
                         break;
                     case 2:
@@ -959,7 +960,7 @@ void demo_full::GenCubemap(GLuint& index, const float width, const float height,
 
     for (unsigned int i = 0; i < 6; i++)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, size, NULL);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, (GLsizei)width, (GLsizei)height, 0, format, size, NULL);
 
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

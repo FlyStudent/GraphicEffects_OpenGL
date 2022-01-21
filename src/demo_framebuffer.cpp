@@ -254,6 +254,9 @@ demo_framebuffer::~demo_framebuffer()
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteVertexArrays(1, &tavernVAO);
     glDeleteProgram(Program);
+    glDeleteProgram(FramebufferProgram);
+    glDeleteFramebuffers(1, &FBO);
+    glDeleteRenderbuffers(1, &RBO);
 }
 
 void demo_framebuffer::Update(const platform_io& IO)

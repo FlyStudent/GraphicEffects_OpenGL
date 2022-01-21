@@ -14,6 +14,7 @@ class bag_object
 {
 public:
     bag_object(GL::cache& GLCache);
+    ~bag_object();
 
     // Mesh
     GLuint MeshBuffer = 0;
