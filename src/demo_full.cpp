@@ -313,6 +313,39 @@ uniform bool uProcessBloom;
 uniform float uGamma;
 uniform float uExposure;
 
+// shader ouputs
+out vec4 FragColor;
+
+void main()
+{
+	vec3 hdrColor = texture(uScreenTexture, TexCoords).rgb;
+    vec3 bloomColor = texture(uBloomTexture, TexCoords).rgb;
+    
+    if (uProcessBloom)
+        hdrColor = hdrColor + bloomColor;
+
+	if (uProcessHdr)
+	{
+		vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
+        hdrColor = toneMapped;
+	}
+    // Gamma correction
+    if (uProcessGamma)
+	    hdrColor = pow(hdrColor, vec3(1.0/uGamma));
+    
+    FragColor = vec4(hdrColor, 1.0);
+})GLSL";
+#pragma endregion
+
+#pragma region POST PROCESS FS
+static const char* gPostFragmentShaderStr = R"GLSL(
+
+// shader inputs
+in vec2 TexCoords;
+
+// uniforms
+uniform sampler2D uScreenTexture;
+
 uniform bool uProcessGreyScale;
 uniform bool uProcessInverse;
 uniform bool uProcessKernel;
@@ -321,10 +354,9 @@ uniform mat3 uKernel;
 uniform float x_ratio;
 uniform float y_ratio;
 
-// shader ouputs
 out vec4 FragColor;
 
-void PostProcess()
+void main()
 {
     float offset_x = 1.0f / x_ratio;
     float offset_y = 1.0f / y_ratio;
@@ -340,6 +372,8 @@ void PostProcess()
         vec2( 0.0f,   -offset_y), // bottom-center
         vec2( offset_x, -offset_y)  // bottom-right    
     );
+
+    FragColor = texture(uScreenTexture, TexCoords);
 
     if (uProcessKernel)
     {
@@ -360,29 +394,7 @@ void PostProcess()
         FragColor = vec4(average, average, average, 1.0f);
     }
 }
-
-void main()
-{
-	vec3 hdrColor = texture(uScreenTexture, TexCoords).rgb;
-    vec3 bloomColor = texture(uBloomTexture, TexCoords).rgb;
-    
-    if (uProcessBloom)
-        hdrColor = hdrColor + bloomColor;
-
-	if (uProcessHdr)
-	{
-		vec3 toneMapped = vec3(1.0) - exp(-hdrColor * uExposure);
-        hdrColor = toneMapped;
-	}
-    // Gamma correction
-    if (uProcessGamma)
-	    hdrColor = pow(hdrColor, vec3(1.0/uGamma));
-    
-    FragColor = vec4(hdrColor, 1.0);
-
-    PostProcess();
-
-})GLSL";
+)GLSL";
 #pragma endregion
 
 #pragma region BLUR FS
@@ -447,8 +459,9 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         SkyProgram =            GL::CreateProgram(gVertexShaderCubeStr, gFragmentShaderCubeStr, false);
         ReflectiveProgram =     GL::CreateProgramEx(1, &gVertexShaderStr, 2, ReflectFragmentShaderStrs, true);
         InstancingProgram =     GL::CreateProgramEx(1, &gInstancingVertexShaderStr, 2, InstFragmentShaderStrs, true);
-        PostProcessProgram =    GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
         BlurProgram =           GL::CreateProgram(gHdrVertexShaderStr, BlurFragmentShaderStr, false);
+        HdrProgram =            GL::CreateProgram(gHdrVertexShaderStr, gHdrFragmentShaderStr, false);
+        PostProcessProgram =    GL::CreateProgram(gHdrVertexShaderStr, gPostFragmentShaderStr, false);
 
     }
 
@@ -627,8 +640,11 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glUniform1i(glGetUniformLocation(BlurProgram, "screenTexture"), 0);
 
         glUseProgram(PostProcessProgram);
-        glUniform1i(glGetUniformLocation(PostProcessProgram, "uScreenBuffer"), 0);
-        glUniform1i(glGetUniformLocation(PostProcessProgram, "uBloomTexture"), 1);
+        glUniform1i(glGetUniformLocation(HdrProgram, "uScreenTexture"), 0);
+
+        glUseProgram(HdrProgram);
+        glUniform1i(glGetUniformLocation(HdrProgram, "uScreenTexture"), 0);
+        glUniform1i(glGetUniformLocation(HdrProgram, "uBloomTexture"), 1);
 
         glUseProgram(InstancingProgram);
         glUniform1i(glGetUniformLocation(InstancingProgram, "uDiffuseTexture"), 0);
@@ -640,19 +656,55 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
         glUniformBlockBinding(Program, glGetUniformBlockIndex(Program, "uLightBlock"), LIGHT_BLOCK_BINDING_POINT);
     }
 
-    // Hdr floating point framebuffer
+    // Generate Framebuffers for basic Rendering and HDR
     {
-        glGenFramebuffers(1, &FBO);
-        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+        glGenFramebuffers(2, FBOs);
 
-        // Create color buffer
-
-        // set up floating point framebuffer to render scene to
-        GLuint colorBuffers[2];
-        glGenTextures(2, colorBuffers);
-        for (unsigned int i = 0; i < 2; i++)
+        glBindFramebuffer(GL_FRAMEBUFFER, FBOs[renderIndex]);
         {
-            glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+            // Create color buffers
+            GLuint colorBuffers[2];
+            glGenTextures(2, colorBuffers);
+            for (unsigned int i = 0; i < 2; i++)
+            {
+                glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+                glTexImage2D(
+                    GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL
+                );
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                // attach texture to framebuffer
+                glFramebufferTexture2D(
+                    GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0
+                );
+            }
+            CBOs[renderIndex] = colorBuffers[0];
+            bloomCBO = colorBuffers[1];
+
+            unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+            glDrawBuffers(2, attachments);
+
+            // create render buffers instead of depth buffer
+            glGenRenderbuffers(2, RBOs);
+            glBindRenderbuffer(GL_RENDERBUFFER, RBOs[renderIndex]);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, IO.ScreenWidth, IO.ScreenHeight);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+            // Attach buffers
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBOs[renderIndex]);
+
+            // Check buffer
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+                std::cout << "Framebuffer not complete." << std::endl;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, FBOs[hdrIndex]);
+        {
+            // Create color buffers
+            glGenTextures(1, &CBOs[hdrIndex]);
+            glBindTexture(GL_TEXTURE_2D, CBOs[hdrIndex]);
             glTexImage2D(
                 GL_TEXTURE_2D, 0, GL_RGBA16F, IO.ScreenWidth, IO.ScreenHeight, 0, GL_RGBA, GL_FLOAT, NULL
             );
@@ -661,28 +713,20 @@ demo_full::demo_full(GL::cache& GLCache, GL::debug& GLDebug, const platform_io& 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             // attach texture to framebuffer
-            glFramebufferTexture2D(
-                GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0
-            );
+            glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, CBOs[hdrIndex], 0 );
+
+            // create render buffers instead of depth buffer
+            glBindRenderbuffer(GL_RENDERBUFFER, RBOs[hdrIndex]);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, IO.ScreenWidth, IO.ScreenHeight);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+            // Attach buffers
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBOs[hdrIndex]);
+
+            // Check buffer
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+                std::cout << "Framebuffer not complete." << std::endl;
         }
-        CBO = colorBuffers[0];
-        bloomCBO = colorBuffers[1];
-
-        unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-        glDrawBuffers(2, attachments);
-
-        // create render buffers instead of depth buffer
-        glGenRenderbuffers(1, &RBO);
-        glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, IO.ScreenWidth, IO.ScreenHeight);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-        // Attach buffers
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
-
-        // Check buffer
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "Framebuffer not complete." << std::endl;
         // Unbind
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
@@ -719,13 +763,14 @@ demo_full::~demo_full()
     glDeleteProgram(Program);
     glDeleteProgram(ReflectiveProgram);
     glDeleteProgram(SkyProgram);
+    glDeleteProgram(HdrProgram);
     glDeleteProgram(PostProcessProgram);
     glDeleteProgram(BlurProgram);
     glDeleteProgram(InstancingProgram);
     glDeleteFramebuffers(2, pingpongFBO);
-    glDeleteFramebuffers(1, &FBO);
+    glDeleteFramebuffers(2, FBOs);
     glDeleteFramebuffers(1, &SkyFBO);
-    glDeleteRenderbuffers(1, &RBO);
+    glDeleteRenderbuffers(2, RBOs);
 }
 
 void demo_full::Update(const platform_io& IO)
@@ -774,17 +819,33 @@ void demo_full::Update(const platform_io& IO)
 
 #pragma region Draw post-process HDR
 
+    glBindFramebuffer(GL_FRAMEBUFFER, FBOs[hdrIndex]);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(HdrProgram);
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(HdrProgram, "uProcessHdr"), processHdr);
+    glUniform1i(glGetUniformLocation(HdrProgram, "uProcessGamma"), processGamma);
+    glUniform1i(glGetUniformLocation(HdrProgram, "uProcessBloom"), processBloom);
+    glUniform1f(glGetUniformLocation(HdrProgram, "uGamma"), gamma);
+    glUniform1f(glGetUniformLocation(HdrProgram, "uExposure"), exposure);
+
+    glDisable(GL_DEPTH_TEST);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, CBOs[renderIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
+
+    RenderQuad();
+#pragma endregion
+
+#pragma region Draw Post-process effects
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(PostProcessProgram);
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessHdr"), processHdr);
-    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessGamma"), processGamma);
-    glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessBloom"), processBloom);
-    glUniform1f(glGetUniformLocation(PostProcessProgram, "uGamma"), gamma);
-    glUniform1f(glGetUniformLocation(PostProcessProgram, "uExposure"), exposure);
 
     glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessInverse"), processInverse);
     glUniform1i(glGetUniformLocation(PostProcessProgram, "uProcessGreyScale"), processGreyScale);
@@ -792,15 +853,12 @@ void demo_full::Update(const platform_io& IO)
     glUniformMatrix3fv(glGetUniformLocation(PostProcessProgram, "uKernel"), 1, GL_FALSE, kernelMat.e);
     glUniform1f(glGetUniformLocation(PostProcessProgram, "x_ratio"), x_ratio_kernel);
     glUniform1f(glGetUniformLocation(PostProcessProgram, "y_ratio"), y_ratio_kernel);
-
+    
     glDisable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, CBO);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, pingpongCBO[!horizontal]);
+    glBindTexture(GL_TEXTURE_2D, CBOs[hdrIndex]);
 
     RenderQuad();
-
 #pragma endregion
 
     // Display debug UI
@@ -839,9 +897,9 @@ void demo_full::DisplayDebugUI()
                     {
                     case 1:
                         kernelMat = {
-                            1 / 9, 1 / 9, 1 / 9,
-                            1 / 9, 1 / 9, 1 / 9,
-                            1 / 9, 1 / 9, 1 / 9
+                            1.f / 9.f, 1.f / 9.f, 1.f / 9.f,
+                            1.f / 9.f, 1.f / 9.f, 1.f / 9.f,
+                            1.f / 9.f, 1.f / 9.f, 1.f / 9.f
                         };
                         break;
                     case 2:
@@ -1084,7 +1142,7 @@ void demo_full::RenderScene(const camera& cam, bool reflection)
 {
     // Bind only if called with reflection
     if (reflection)
-        glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, FBOs[renderIndex]);
 
     // Clear screen
     glClearColor(0.f, 0.f, 0.f, 1.f);

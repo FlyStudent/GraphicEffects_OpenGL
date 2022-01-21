@@ -47,9 +47,11 @@ private:
     GLuint quadVAO = 0;
     GLuint SphereVAO = 0;
 
-    GLuint FBO = 0;
-    GLuint RBO = 0;
-    GLuint CBO = 0;
+    const int renderIndex = 0, hdrIndex = 1;
+    GLuint FBOs[2];
+    GLuint RBOs[2];
+    GLuint CBOs[2];
+
 
     float AspectRatio = 0.f;
 
@@ -66,6 +68,7 @@ private:
 
     // HDR objects
 
+    GLuint HdrProgram = 0;
     bool processHdr = true;
     bool processGamma = true;
 

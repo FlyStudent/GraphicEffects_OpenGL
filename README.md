@@ -24,4 +24,3 @@ Les suivantes sont une séparation des effets réalisés.
 - Le bloom peut-être appliqué sur les éléments autre que la taverne de manière incorrect.  
 - Les instances _(météorites)_ reçoivent toute la même lumière.  
 - L'ambiante des lumières agis étrangement. Si une scène semble trop blanchie, c'est qu'il faut éteindre la couleur ambiante des lumières.  
-- L'HDR et le Post process avec une matrice Kernel ne sont pas compatibles. C'est soit l'un soit l'autre.  
