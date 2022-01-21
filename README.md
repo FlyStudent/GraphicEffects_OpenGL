@@ -21,7 +21,6 @@ La seconde regroupe la quasi-totalité des effets mais avec de nombreux défauts
 Les suivantes sont une séparation des effets réalisés.  
 
 ## Problèmes rencontrés  
-- La réflexion dynamique ne marche pas correctement dans demo_full  
 - Le bloom peut-être appliqué sur les éléments autre que la taverne de manière incorrect.  
 - Les instances _(météorites)_ reçoivent toute la même lumière.  
 - L'ambiante des lumières agis étrangement. Si une scène semble trop blanchie, c'est qu'il faut éteindre la couleur ambiante des lumières.  

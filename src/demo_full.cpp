@@ -1091,7 +1091,10 @@ void demo_full::RenderScene(const camera& cam, bool reflection)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
 
-    mat4 ProjectionMatrix = Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f);
+    mat4 ProjectionMatrix = reflection ?    Mat4::Perspective(Math::ToRadians(60.f), AspectRatio, 0.1f, 100.f) :
+                                            Mat4::Perspective(Math::ToRadians(-90.f), 1.f, 0.1f, 100.f);
+
+
     mat4 ViewMatrix = CameraGetInverseMatrix(cam);
     mat4 ModelMatrix = Mat4::Translate({ 0.f, 0.f, 0.f });
 
